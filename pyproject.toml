@@ -17,22 +17,22 @@ description = "Nomad example template"
 version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [
-    { name = "Ahmed Ilyas", email = "ahmed.ilyas@physik.hu-berlin.de" },
-]
+authors = [{ name = "Ahmed Ilyas", email = "ahmed.ilyas@physik.hu-berlin.de" }]
 maintainers = [
     { name = "Ahmed Ilyas", email = "ahmed.ilyas@physik.hu-berlin.de" },
 ]
 license = { file = "LICENSE" }
-dependencies = [
-    "nomad-lab>=1.3.0",
-    "python-magic-bin; sys_platform == 'win32'",
-]
+dependencies = ["nomad-lab>=1.3.0", "python-magic-bin; sys_platform == 'win32'"]
 
 [project.urls]
 Repository = "https://github.com/blueraft/nomad-plugin-crystal-llm"
 
 [project.optional-dependencies]
+gpu-workflow = [
+    "requests",
+    "aiohttp",
+    "crystallm @ git+https://github.com/ka-sarthak/CrystaLLM.git@main",
+]
 dev = ["ruff", "pytest", "structlog"]
 
 [tool.ruff]
@@ -110,10 +110,8 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [project.entry-points.'nomad.plugin']
-
-
-
-
+crystal_llm = "nomad_plugin_crystal_llm.workflows:crystal_llm"
+crystal_llm_api = "nomad_plugin_crystal_llm.apis:crystal_llm_api"
 
 [tool.cruft]
 # Avoid updating workflow files, this leads to permissions issues
