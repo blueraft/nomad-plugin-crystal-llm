@@ -1,0 +1,28 @@
+{
+  "template": "https://github.com/FAIRmat-NFDI/cookiecutter-nomad-plugin",
+  "commit": "d306850507a46af96b5ab71129582655ce534c86",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "full_name": "Ahmed Ilyas",
+      "email": "ahmed.ilyas@physik.hu-berlin.de",
+      "github_username": "blueraft",
+      "plugin_name": "nomad-plugin-crystal-llm",
+      "module_name": "nomad_plugin_crystal_llm",
+      "short_description": "Nomad example template",
+      "version": "0.1.0",
+      "license": "MIT",
+      "include_schema_package": false,
+      "include_normalizer": false,
+      "include_parser": false,
+      "include_app": false,
+      "include_example_uploads": false,
+      "_copy_without_render": [
+        "*.html"
+      ],
+      "_template": "https://github.com/FAIRmat-NFDI/cookiecutter-nomad-plugin",
+      "_commit": "d306850507a46af96b5ab71129582655ce534c86"
+    }
+  },
+  "directory": null
+}
