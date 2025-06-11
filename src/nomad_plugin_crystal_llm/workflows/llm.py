@@ -18,6 +18,9 @@ from nomad_plugin_crystal_llm.workflows.shared import (
     InferenceResultsInput,
 )
 
+from nomad.files import StagingUploadFiles
+from nomad.orchestrator.util import get_upload_files
+
 BLOCK_SIZE = 1024
 
 
@@ -137,8 +140,12 @@ def write_cif_files(result: InferenceResultsInput) -> None:
     """
     Write the generated CIFs to the specified target (console or file).
     """
-    if result.generate_cif:
-        for k, sample in enumerate(result.generated_samples):
-            fname = f"sample_{k + 1}.cif"
-            with open(fname, "wt", encoding="utf-8") as f:
-                f.write(sample)
+    upload_files = get_upload_files(result.upload_id, result.user_id)
+    if upload_files and result.generate_cif:
+        if result.generate_cif:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                for k, sample in enumerate(result.generated_samples):
+                    fname = os.path.join(tmpdir, f"sample_{k + 1}.cif")
+                    with open(fname, "wt", encoding="utf-8") as f:
+                        f.write(sample)
+                    upload_files.add_rawfiles(fname)

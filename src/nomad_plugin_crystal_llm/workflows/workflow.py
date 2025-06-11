@@ -10,7 +10,7 @@ with workflow.unsafe.imports_passed_through():
         write_results,
     )
     from nomad_plugin_crystal_llm.workflows.shared import (
-        InferenceUserInput,
+        InferenceInput,
         InferenceModelInput,
         InferenceResultsInput,
     )
@@ -19,7 +19,7 @@ with workflow.unsafe.imports_passed_through():
 @workflow.defn
 class InferenceWorkflow:
     @workflow.run
-    async def run(self, data: InferenceUserInput) -> list[str]:
+    async def run(self, data: InferenceInput) -> list[str]:
         raw_input = await workflow.execute_activity(
             construct_model_input,
             data,
@@ -39,7 +39,10 @@ class InferenceWorkflow:
         await workflow.execute_activity(
             write_results,
             InferenceResultsInput(
-                generated_samples=generated_samples, generate_cif=data.generate_cif
+                user_id=data.user_id,
+                upload_id=data.upload_id,
+                generated_samples=generated_samples,
+                generate_cif=data.generate_cif,
             ),
             start_to_close_timeout=timedelta(seconds=60),
         )
