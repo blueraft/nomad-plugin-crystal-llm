@@ -6,7 +6,7 @@ from nomad.app import main
 from nomad.orchestrator.shared.constant import TaskQueue
 from nomad.app.v1.routers.auth import create_user_dependency
 
-from nomad_plugin_crystal_llm.workflows.shared import InferenceUserInput
+from nomad_plugin_crystal_llm.workflows.shared import InferenceInput, InferenceUserInput
 
 crystal_llm_api_entrypoint = config.get_plugin_entry_point(
     "nomad_plugin_crystal_llm.apis:crystal_llm_api"
@@ -30,9 +30,15 @@ async def start_inference_task(
 ):
     workflow_id = f"crystal-llm-workflow-{user.user_id}-{uuid.uuid4()}"
     client = main.temporal_client()
+    workflow_data = InferenceInput(
+        raw_input=data.raw_input,
+        generate_cif=data.generate_cif,
+        upload_id=data.upload_id,
+        user_id=user.user_id,
+    )
     try:
         await client.start_workflow(
-            "InferenceWorkflow", data, id=workflow_id, task_queue=TaskQueue.GPU
+            "InferenceWorkflow", workflow_data, id=workflow_id, task_queue=TaskQueue.GPU
         )
         return {"workflow_id": workflow_id}
     except Exception as e:

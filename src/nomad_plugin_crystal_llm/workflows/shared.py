@@ -7,13 +7,31 @@ class InferenceUserInput:
     User input data for the inference workflow.
 
     Attributes:
-    - input_file: Path to a file containing the input prompt.
     - raw_input: Raw input string to use as a prompt.
+    - upload_id: If `generate_cif` is set to True, save CIF files to this upload.
     - generate_cif: If True, the model will generate CIF files.
     """
 
-    input_file: str | None = None
-    raw_input: str | None = None
+    upload_id: str
+    raw_input: str
+    generate_cif: bool = False
+
+
+@dataclass
+class InferenceInput:
+    """
+    User input data for the inference workflow.
+
+    Attributes:
+    - raw_input: Raw input string to use as a prompt.
+    - user_id: User making the request
+    - upload_id: If `generate_cif` is set to True, save CIF files to this upload.
+    - generate_cif: If True, the model will generate CIF files.
+    """
+
+    upload_id: str
+    user_id: str
+    raw_input: str
     generate_cif: bool = False
 
 
@@ -58,9 +76,13 @@ class InferenceResultsInput:
     CIF Results input data for the inference workflow.
 
     Attributes:
+    - upload_id: If generate_cif, write the generate CIF files to the upload.
+    - user_id: User making the request
     - generate_cif: If True, the model will generate CIF files.
     - generated_samples: List to store generated samples from the model.
     """
 
+    upload_id: str
+    user_id: str
     generated_samples: list[str]
     generate_cif: bool
