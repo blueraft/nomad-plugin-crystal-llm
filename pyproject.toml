@@ -112,6 +112,7 @@ where = ["src"]
 [project.entry-points.'nomad.plugin']
 crystal_llm = "nomad_plugin_crystal_llm.workflows:crystal_llm"
 crystal_llm_api = "nomad_plugin_crystal_llm.apis:crystal_llm_api"
+crystal_llm_schemas = "nomad_plugin_crystal_llm:crystal_llm_schemas"
 
 [tool.cruft]
 # Avoid updating workflow files, this leads to permissions issues
