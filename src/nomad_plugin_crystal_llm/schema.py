@@ -20,7 +20,7 @@ class InferenceCategory(EntryDataCategory):
     )
 
 
-class InferenceSection(ArchiveSection, metaclass=ABCMeta):
+class WorkflowSection(ArchiveSection):
     """Abstract section to run inference workflows"""
 
     trigger_run_inference = Quantity(
@@ -132,8 +132,31 @@ class CrystaLLMInferenceSettings(ArchiveSection):
 class CrystaLLMInferenceResult(ArchiveSection):
     """Result of a CrystaLLM inference workflow."""
 
+    workflow_id = Quantity(
+        type=str,
+        description='ID of the workflow that generated this result.',
+    )
+    prompt = Quantity(
+        type=str,
+        description='Prompt used for the inference.',
+    )
+    status = Quantity(
+        type=str,
+        default='pending',
+        description='Status of the inference result.',
+    )
+    cif_file = Quantity(
+        type=str,
+        default='',
+        description='Path to the CIF file generated from the inference result.',
+    )
+    system = Quantity(
+        type=System,
+        description='Reference to the system normalized from the CIF file.',
+    )
 
-class CrystaLLMInference(InferenceSection, EntryData):
+
+class CrystaLLMInference(WorkflowSection, EntryData):
     """
     Section for running CrystaLLM inference workflows.
     """
