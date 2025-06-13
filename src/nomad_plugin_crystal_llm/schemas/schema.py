@@ -12,12 +12,10 @@ from nomad.datamodel.results import Material, SymmetryNew, System
 from nomad.metainfo import Category, Quantity, SchemaPackage, Section, SubSection
 from nomad.normalizing.common import nomad_atoms_from_ase_atoms
 from nomad.normalizing.topology import add_system, add_system_info
+from nomad.orchestrator import util as orchestrator_utils
+from nomad.orchestrator.shared.constant import TaskQueue
 
 from nomad_plugin_crystal_llm.workflows.shared import InferenceInput
-from nomad_plugin_crystal_llm.workflows.workflow import (
-    get_workflow_status,
-    run_llm_workflow,
-)
 
 m_package = SchemaPackage()
 
@@ -26,7 +24,7 @@ class InferenceCategory(EntryDataCategory):
     """Category for inference workflows."""
 
     m_def = Category(
-        label='Inference Workflows',
+        label="Inference Workflows",
         categories=[EntryDataCategory],
     )
 
@@ -36,26 +34,26 @@ class WorkflowSection(ArchiveSection):
 
     trigger_run_workflow = Quantity(
         type=bool,
-        description='Trigger to run the workflow.',
+        description="Trigger to run the workflow.",
         a_eln=ELNAnnotation(
-            component=ELNComponentEnum.ActionEditQuantity, label='Run Inference'
+            component=ELNComponentEnum.ActionEditQuantity, label="Run Inference"
         ),
     )
     trigger_workflow_status = Quantity(
         type=bool,
-        description='Trigger to get the status of the workflow.',
+        description="Trigger to get the status of the workflow.",
         a_eln=ELNAnnotation(
-            component=ELNComponentEnum.ActionEditQuantity, label='Get Workflow Status'
+            component=ELNComponentEnum.ActionEditQuantity, label="Get Workflow Status"
         ),
     )
 
     def run_workflow(self, archive, logger=None):
         """Run the workflow with the provided archive."""
-        raise NotImplementedError('This method should be implemented in subclasses.')
+        raise NotImplementedError("This method should be implemented in subclasses.")
 
     def workflow_status(self, archive, logger=None):
         """Get the status of the workflow."""
-        raise NotImplementedError('This method should be implemented in subclasses.')
+        raise NotImplementedError("This method should be implemented in subclasses.")
 
     def normalize(self, archive, logger=None):
         """Normalize the section to ensure it is ready for processing."""
@@ -64,14 +62,14 @@ class WorkflowSection(ArchiveSection):
             try:
                 self.run_workflow(archive, logger)
             except Exception as e:
-                logger.error(f'Error running workflow: {e}. ')
+                logger.error(f"Error running workflow: {e}. ")
             self.trigger_run_workflow = False
 
         if self.trigger_workflow_status:
             try:
                 self.workflow_status(archive, logger)
             except Exception as e:
-                logger.error(f'Error getting workflow status: {e}. ')
+                logger.error(f"Error getting workflow status: {e}. ")
             self.trigger_workflow_status = False
 
 
@@ -80,15 +78,15 @@ class CrystaLLMInferenceSettings(ArchiveSection):
 
     model_path = Quantity(
         type=str,
-        default='models/crystallm_v1_small/ckpt.pt',
-        description='Path to the model file.',
+        default="models/crystallm_v1_small/ckpt.pt",
+        description="Path to the model file.",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity,
         ),
     )
     model_url = Quantity(
         type=str,
-        default='https://zenodo.org/records/10642388/files/crystallm_v1_small.tar.gz',
+        default="https://zenodo.org/records/10642388/files/crystallm_v1_small.tar.gz",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity,
         ),
@@ -96,7 +94,7 @@ class CrystaLLMInferenceSettings(ArchiveSection):
     num_samples = Quantity(
         type=int,
         default=2,
-        description='Number of samples to draw during inference.',
+        description="Number of samples to draw during inference.",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
         ),
@@ -104,7 +102,7 @@ class CrystaLLMInferenceSettings(ArchiveSection):
     max_new_tokens = Quantity(
         type=int,
         default=3000,
-        description='Maximum number of tokens to generate in each sample.',
+        description="Maximum number of tokens to generate in each sample.",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
         ),
@@ -112,8 +110,8 @@ class CrystaLLMInferenceSettings(ArchiveSection):
     temperature = Quantity(
         type=float,
         default=0.8,
-        description='Controls the randomness of predictions. Lower values make the '
-        'model more deterministic, while higher values increase randomness.',
+        description="Controls the randomness of predictions. Lower values make the "
+        "model more deterministic, while higher values increase randomness.",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
             minValue=0.0,
@@ -122,7 +120,7 @@ class CrystaLLMInferenceSettings(ArchiveSection):
     top_k = Quantity(
         type=int,
         default=10,
-        description='Retain only the top_k most likely tokens, clamp others to have 0 probability.',
+        description="Retain only the top_k most likely tokens, clamp others to have 0 probability.",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
         ),
@@ -130,14 +128,14 @@ class CrystaLLMInferenceSettings(ArchiveSection):
     seed = Quantity(
         type=int,
         default=1337,
-        description='Random seed for reproducibility.',
+        description="Random seed for reproducibility.",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.NumberEditQuantity,
         ),
     )
     dtype = Quantity(
         type=str,
-        default='bfloat16',
+        default="bfloat16",
         description='Data type for the model (e.g., "float32", "bfloat16", "float16").',
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.StringEditQuantity,
@@ -146,7 +144,7 @@ class CrystaLLMInferenceSettings(ArchiveSection):
     compile = Quantity(
         type=bool,
         default=False,
-        description='Whether to compile the model for faster inference.',
+        description="Whether to compile the model for faster inference.",
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.BoolEditQuantity,
         ),
@@ -158,23 +156,23 @@ class CrystaLLMInferenceResult(ArchiveSection):
 
     workflow_id = Quantity(
         type=str,
-        description='ID of the workflow that generated this result.',
+        description="ID of the workflow that generated this result.",
     )
     prompt = Quantity(
         type=str,
-        description='Prompt used for the inference.',
+        description="Prompt used for the inference.",
     )
     status = Quantity(
         type=str,
-        description='Status of the inference result.',
+        description="Status of the inference result.",
     )
     cif_file = Quantity(
         type=str,
-        description='Path to the CIF file generated from the inference result.',
+        description="Path to the CIF file generated from the inference result.",
     )
     system = Quantity(
         type=System,
-        description='Reference to the system normalized from the CIF file.',
+        description="Reference to the system normalized from the CIF file.",
     )
 
 
@@ -188,39 +186,39 @@ class CrystaLLMInference(WorkflowSection, EntryData):
         a_eln=ELNAnnotation(
             properties=SectionProperties(
                 order=[
-                    'name',
-                    'description',
-                    'prompts',
-                    'trigger_run_inference',
-                    'inference_settings',
-                    'results',
+                    "name",
+                    "description",
+                    "prompts",
+                    "trigger_run_inference",
+                    "inference_settings",
+                    "results",
                 ]
             ),
         ),
     )
     name = Quantity(
         type=str,
-        description='Name of the inference workflow.',
+        description="Name of the inference workflow.",
         a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
     )
     description = Quantity(
         type=str,
-        description='Description of the inference workflow.',
+        description="Description of the inference workflow.",
         a_eln=ELNAnnotation(component=ELNComponentEnum.RichTextEditQuantity),
     )
     prompts = Quantity(
         type=str,
-        shape=['*'],
-        description='Prompt to be used for inference.',
+        shape=["*"],
+        description="Prompt to be used for inference.",
         a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
     )
     inference_settings = SubSection(
         section_def=CrystaLLMInferenceSettings,
-        description='Settings for the CrystaLLM inference workflow.',
+        description="Settings for the CrystaLLM inference workflow.",
     )
     results = SubSection(
         section_def=CrystaLLMInferenceResult,
-        description='Results of the inference workflow.',
+        description="Results of the inference workflow.",
         repeats=True,
     )
 
@@ -232,19 +230,22 @@ class CrystaLLMInference(WorkflowSection, EntryData):
         self.results = []
         if not archive.metadata.authors:
             logger.warn(
-                'No authors found in the archive metadata. '
-                'Cannot run CrystaLLM inference workflow.'
+                "No authors found in the archive metadata. "
+                "Cannot run CrystaLLM inference workflow."
             )
             return
         input_data = InferenceInput(
             user_id=archive.metadata.authors[0].user_id,
             upload_id=archive.metadata.upload_id,
-            raw_input='',
+            raw_input="",
             generate_cif=True,
         )
+        workflow_name = "nomad_plugin_crystal_llm.workflows.InferenceWorkflow"
         for prompt in self.prompts:
             input_data.raw_input = prompt
-            workflow_id = asyncio.run(run_llm_workflow(input_data))
+            workflow_id = orchestrator_utils.run_workflow(
+                workflow_name=workflow_name, data=input_data, task_queue=TaskQueue.GPU
+            )
             self.results.append(
                 CrystaLLMInferenceResult(
                     workflow_id=workflow_id,
@@ -258,8 +259,9 @@ class CrystaLLMInference(WorkflowSection, EntryData):
         This method should be implemented to retrieve the status of the workflow.
         """
         for result in self.results:
-            status = asyncio.run(get_workflow_status(result.workflow_id))
-            result.status = status
+            status = orchestrator_utils.get_workflow_status(result.workflow_id)
+            if status:
+                result.status = str(status)
 
     def process_generated_cif(self, archive, logger):
         """
@@ -272,9 +274,9 @@ class CrystaLLMInference(WorkflowSection, EntryData):
         ase_atoms_list = []
         for result in self.results:
             cif_file = result.cif_file
-            if not cif_file or not cif_file.endswith('.cif'):
+            if not cif_file or not cif_file.endswith(".cif"):
                 logger.warn(
-                    f'Cannot parse structure file: {cif_file}. '
+                    f"Cannot parse structure file: {cif_file}. "
                     'Should be a "*.cif" file.'
                 )
                 continue
@@ -282,7 +284,7 @@ class CrystaLLMInference(WorkflowSection, EntryData):
                 try:
                     ase_atoms_list.append(read(file.name))
                 except RuntimeError:
-                    logger.warn(f'Cannot parse cif file: {cif_file}.')
+                    logger.warn(f"Cannot parse cif file: {cif_file}.")
 
         # Let's save the composition and structure into archive.results.material
         if not archive.results.material:
@@ -310,16 +312,16 @@ class CrystaLLMInference(WorkflowSection, EntryData):
             symmetry.crystal_system = symmetry_analyzer.get_crystal_system()
             symmetry.point_group = symmetry_analyzer.get_point_group()
             label = (
-                f'{cif_file.rsplit(".", 1)[0]}-{ase_atoms.get_chemical_formula()}'
-                f'-{symmetry.space_group_number}'
+                f"{cif_file.rsplit('.', 1)[0]}-{ase_atoms.get_chemical_formula()}"
+                f"-{symmetry.space_group_number}"
             )
             labels.append(label)
             system = System(
                 atoms=nomad_atoms_from_ase_atoms(ase_atoms),
                 label=label,
-                description='Structure generated by CrystaLLM',
-                structural_type='bulk',
-                dimensionality='3D',
+                description="Structure generated by CrystaLLM",
+                structural_type="bulk",
+                dimensionality="3D",
                 symmetry=symmetry,
             )
             add_system_info(system, topology)
@@ -328,7 +330,7 @@ class CrystaLLMInference(WorkflowSection, EntryData):
         archive.results.material.topology = list(topology.values())
         topology_m_proxies = dict()
         for i, system in enumerate(archive.results.material.topology):
-            topology_m_proxies[system.label] = f'#/results/material/topology/{i}'
+            topology_m_proxies[system.label] = f"#/results/material/topology/{i}"
 
         # connect `data.reference_structures[i].system` and
         # `results.material.topology[j]` using the label
