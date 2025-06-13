@@ -1,5 +1,8 @@
+import uuid
 from datetime import timedelta
 
+from fastapi import HTTPException
+from nomad.orchestrator.client import get_client
 from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
@@ -47,3 +50,35 @@ class InferenceWorkflow:
             start_to_close_timeout=timedelta(seconds=60),
         )
         return generated_samples
+
+
+async def run_llm_workflow(input_data: InferenceInput) -> str:
+    workflow_id = f'inference-workflow-{input_data.upload_id}-{uuid.uuid4()}'
+    client = await get_client()
+    try:
+        await client.start_workflow(
+            InferenceWorkflow.run,
+            input_data,
+            id=f'inference_workflow_{input_data.upload_id}_{input_data.user_id}',
+            task_queue='crystal-llm',
+            workflow_id=f'inference_workflow_{input_data.upload_id}_{input_data.user_id}',
+        )
+        return workflow_id
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Failed to start workflow: {str(e)}',
+        ) from e
+
+
+async def get_workflow_status(workflow_id: str) -> str:
+    client = await get_client()
+    try:
+        handle = client.get_workflow_handle(workflow_id)
+        status = await handle.describe()
+        return status.status.name
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Failed to get workflow status: {str(e)}',
+        ) from e
