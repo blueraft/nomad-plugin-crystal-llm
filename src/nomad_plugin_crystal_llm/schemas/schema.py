@@ -132,49 +132,60 @@ class InferenceSettingsFixed(InferenceSettings):
 class InferenceSettingsForm(InferenceSettings):
     """Settings form for CrystaLLM inference workflows with editable fields."""
 
-    model = InferenceSettings.model.m_copy()
-    model.m_annotation = ELNAnnotation(
-        component=ELNComponentEnum.EnumEditQuantity,
-        default='crystallm_v1_small',
-    )
+    m_def = Section(a_eln=ELNAnnotation(overview=True))
+
     prompt = InferenceSettings.prompt.m_copy()
-    prompt.m_annotation = ELNAnnotation(
-        component=ELNComponentEnum.StringEditQuantity,
+    prompt.m_annotations['eln'] = ELNAnnotation(
+        component=ELNComponentEnum.RichTextEditQuantity,
+        props=dict(height=150),
     )
-    num_samples = InferenceSettings.num_samples.m_copy()
-    num_samples.m_annotation = ELNAnnotation(
-        component=ELNComponentEnum.NumberEditQuantity,
-        default=1,
-    )
-    max_new_tokens = InferenceSettings.max_new_tokens.m_copy()
-    max_new_tokens.m_annotation = ELNAnnotation(
-        component=ELNComponentEnum.NumberEditQuantity,
-        default=3000,
-    )
-    temperature = InferenceSettings.temperature.m_copy()
-    temperature.m_annotation = ELNAnnotation(
-        component=ELNComponentEnum.NumberEditQuantity,
-        default=0.8,
-    )
-    top_k = InferenceSettings.top_k.m_copy()
-    top_k.m_annotation = ELNAnnotation(
-        component=ELNComponentEnum.NumberEditQuantity,
-        default=10,
-    )
-    seed = InferenceSettings.seed.m_copy()
-    seed.m_annotation = ELNAnnotation(
-        component=ELNComponentEnum.NumberEditQuantity,
-        default=1337,
-    )
-    dtype = InferenceSettings.dtype.m_copy()
-    dtype.m_annotation = ELNAnnotation(
+
+    model = InferenceSettings.model.m_copy()
+    model.default = 'crystallm_v1_small'
+    model.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.EnumEditQuantity,
-        default='bfloat16',
     )
+
+    num_samples = InferenceSettings.num_samples.m_copy()
+    num_samples.default = 1
+    num_samples.m_annotations['eln'] = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+    )
+
+    max_new_tokens = InferenceSettings.max_new_tokens.m_copy()
+    max_new_tokens.default = 3000
+    max_new_tokens.m_annotations['eln'] = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+    )
+
+    temperature = InferenceSettings.temperature.m_copy()
+    temperature.default = 0.8
+    temperature.m_annotations['eln'] = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+    )
+
+    top_k = InferenceSettings.top_k.m_copy()
+    top_k.default = 10
+    top_k.m_annotations['eln'] = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+    )
+
+    seed = InferenceSettings.seed.m_copy()
+    seed.default = 1337
+    seed.m_annotations['eln'] = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+    )
+
+    dtype = InferenceSettings.dtype.m_copy()
+    dtype.default = 'bfloat16'
+    dtype.m_annotations['eln'] = ELNAnnotation(
+        component=ELNComponentEnum.EnumEditQuantity,
+    )
+
     compile = InferenceSettings.compile.m_copy()
-    compile.m_annotation = ELNAnnotation(
+    compile.default = False
+    compile.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.BoolEditQuantity,
-        default=False,
     )
 
 
@@ -209,6 +220,7 @@ class CrystaLLMInference(WorkflowSection, EntryData):
     """
 
     m_def = Section(
+        label='CrystaLLM Inference',
         categories=[InferenceCategory],
         a_eln=ELNAnnotation(
             properties=SectionProperties(
@@ -231,7 +243,10 @@ class CrystaLLMInference(WorkflowSection, EntryData):
     description = Quantity(
         type=str,
         description='Description of the inference workflow.',
-        a_eln=ELNAnnotation(component=ELNComponentEnum.RichTextEditQuantity),
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.RichTextEditQuantity,
+            props=dict(height=150),
+        ),
     )
     inference_form = SubSection(
         section_def=InferenceSettingsForm,
@@ -363,8 +378,12 @@ class CrystaLLMInference(WorkflowSection, EntryData):
         Normalize the CrystaLLM inference section.
         This method ensures that the section is ready for processing.
         """
-        super().normalize(archive, logger)
+        if not self.name:
+            self.name = archive.metadata.mainfile.split('.', 1)[0]
+
         self.process_generated_cif(archive, logger)
+
+        super().normalize(archive, logger)
 
 
 m_package.__init_metainfo__()
