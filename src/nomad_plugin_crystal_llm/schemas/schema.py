@@ -32,9 +32,10 @@ class RunWorkflowAction(ArchiveSection):
 
     trigger_run_workflow = Quantity(
         type=bool,
-        description='Trigger to run the workflow.',
+        description='Starts an asynchronous workflow for running the inference.',
         a_eln=ELNAnnotation(
-            component=ELNComponentEnum.ActionEditQuantity, label='Run Inference'
+            component=ELNComponentEnum.ActionEditQuantity,
+            label='Run Inference Workflow',
         ),
     )
 
@@ -56,24 +57,43 @@ class RunWorkflowAction(ArchiveSection):
 class GetWorkflowStatusAction(ArchiveSection):
     """Abstract section to get the status of inference workflows"""
 
+    workflow_id = Quantity(
+        type=str,
+        description='ID of the `temporalio` workflow.',
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity,
+            label='Workflow ID',
+        ),
+    )
+    status = Quantity(
+        type=str,
+        description='Status of the inference workflow.',
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.StringEditQuantity,
+        ),
+    )
     trigger_workflow_status = Quantity(
         type=bool,
-        description='Trigger to get the status of the workflow.',
+        description='Fetches the status of the inference workflow for given workflow '
+        'id.',
         a_eln=ELNAnnotation(
-            component=ELNComponentEnum.ActionEditQuantity, label='Get Workflow Status'
+            component=ELNComponentEnum.ActionEditQuantity,
+            label='Get Inference Workflow Status',
         ),
     )
 
-    def workflow_status(self, archive, logger=None):
+    def workflow_status(self):
         """Get the status of the workflow."""
-        raise NotImplementedError('This method should be implemented in subclasses.')
+        status = orchestrator_utils.get_workflow_status(self.workflow_id)
+        if status:
+            self.status = status.name
 
     def normalize(self, archive, logger=None):
         """Normalize the section to ensure it is ready for processing."""
         super().normalize(archive, logger)
         if self.trigger_workflow_status:
             try:
-                self.workflow_status(archive, logger)
+                self.workflow_status()
             except Exception as e:
                 logger.error(f'Error getting workflow status: {e}. ')
             finally:
@@ -138,10 +158,26 @@ class InferenceSettingsFixed(InferenceSettings):
     """Settings for CrystaLLM inference workflows with non-editable fields."""
 
 
-class InferenceSettingsForm(InferenceSettings):
+class InferenceSettingsForm(InferenceSettings, RunWorkflowAction):
     """Settings form for CrystaLLM inference workflows with editable fields."""
 
-    m_def = Section(a_eln=ELNAnnotation(overview=True))
+    m_def = Section(
+        a_eln=ELNAnnotation(
+            overview=True,
+            order=[
+                'prompt',
+                'model',
+                'num_samples',
+                'max_new_tokens',
+                'temperature',
+                'top_k',
+                'seed',
+                'dtype',
+                'compile',
+                'trigger_run_workflow',
+            ],
+        )
+    )
 
     prompt = InferenceSettings.prompt.m_copy()
     prompt.m_annotations['eln'] = ELNAnnotation(
@@ -197,18 +233,62 @@ class InferenceSettingsForm(InferenceSettings):
         component=ELNComponentEnum.BoolEditQuantity,
     )
 
+    def run_workflow(self, archive, logger=None):
+        """
+        Run the CrystaLLM inference workflow with the provided archive.
+        Uses the first author's credentials to run the workflow.
+        """
+        if not self.prompt:
+            logger.warn(
+                'No prompt provided for the CrystaLLM inference workflow. '
+                'Cannot run the workflow.'
+            )
+            return
+        if not archive.metadata.authors:
+            logger.warn(
+                'No authors found in the archive metadata. '
+                'Cannot run CrystaLLM inference workflow.'
+            )
+            return
+        input_data = InferenceInput(
+            user_id=archive.metadata.authors[0].user_id,
+            upload_id=archive.metadata.upload_id,
+            raw_input=self.prompt,
+            generate_cif=True,
+        )
+        workflow_name = 'nomad_plugin_crystal_llm.workflows.InferenceWorkflow'
+        workflow_id = orchestrator_utils.run_workflow(
+            workflow_name=workflow_name, data=input_data, task_queue=TaskQueue.GPU
+        )
+        archive.data.results.append(
+            InferenceResult(
+                workflow_id=workflow_id,
+                prompt=self.prompt,
+            )
+        )
+        # Clear the prompt after running the workflow
+        self.prompt = ''
 
-class InferenceResult(ArchiveSection):
+
+class InferenceResult(GetWorkflowStatusAction):
     """Result of a CrystaLLM inference workflow."""
 
-    workflow_id = Quantity(
-        type=str,
-        description='ID of the `temporalio` workflow that generated this result.',
+    m_def = Section(
+        label='CrystaLLM Inference Result',
+        a_eln=ELNAnnotation(
+            properties=SectionProperties(
+                order=[
+                    'workflow_id',
+                    'status',
+                    'generated_cif',
+                    'generated_structure',
+                    'inference_settings',
+                    'trigger_workflow_status',
+                ]
+            ),
+        ),
     )
-    status = Quantity(
-        type=str,
-        description='Status of the inference result.',
-    )
+
     generated_cif = Quantity(
         type=str,
         description='Path to the CIF generated by the LLM.',
@@ -223,7 +303,7 @@ class InferenceResult(ArchiveSection):
     )
 
 
-class CrystaLLMInference(EntryData, RunWorkflowAction, GetWorkflowStatusAction):
+class CrystaLLMInference(EntryData):
     """
     Section for running CrystaLLM inference workflows.
     """
@@ -236,8 +316,6 @@ class CrystaLLMInference(EntryData, RunWorkflowAction, GetWorkflowStatusAction):
                 order=[
                     'name',
                     'description',
-                    'trigger_run_workflow',
-                    'trigger_workflow_status',
                     'inference_form',
                     'results',
                 ]
@@ -266,47 +344,6 @@ class CrystaLLMInference(EntryData, RunWorkflowAction, GetWorkflowStatusAction):
         description='Results of the inference workflow.',
         repeats=True,
     )
-
-    def run_workflow(self, archive, logger=None):
-        """
-        Run the CrystaLLM inference workflow with the provided archive.
-        Uses the first author's credentials to run the workflow.
-        """
-        self.results = []
-        if not archive.metadata.authors:
-            logger.warn(
-                'No authors found in the archive metadata. '
-                'Cannot run CrystaLLM inference workflow.'
-            )
-            return
-        input_data = InferenceInput(
-            user_id=archive.metadata.authors[0].user_id,
-            upload_id=archive.metadata.upload_id,
-            raw_input='',
-            generate_cif=True,
-        )
-        workflow_name = 'nomad_plugin_crystal_llm.workflows.InferenceWorkflow'
-        for prompt in self.prompts:
-            input_data.raw_input = prompt
-            workflow_id = orchestrator_utils.run_workflow(
-                workflow_name=workflow_name, data=input_data, task_queue=TaskQueue.GPU
-            )
-            self.results.append(
-                InferenceResult(
-                    workflow_id=workflow_id,
-                    prompt=prompt,
-                )
-            )
-
-    def workflow_status(self, archive, logger=None):
-        """
-        Get the status of the CrystaLLM inference workflow.
-        This method should be implemented to retrieve the status of the workflow.
-        """
-        for result in self.results:
-            status = orchestrator_utils.get_workflow_status(result.workflow_id)
-            if status:
-                result.status = status.name
 
     def process_generated_cif(self, archive, logger):
         """
@@ -389,7 +426,8 @@ class CrystaLLMInference(EntryData, RunWorkflowAction, GetWorkflowStatusAction):
         """
         if not self.name:
             self.name = archive.metadata.mainfile.split('.', 1)[0]
-
+        if not self.inference_form:
+            self.inference_form = InferenceSettingsForm()
         self.process_generated_cif(archive, logger)
 
         super().normalize(archive, logger)
