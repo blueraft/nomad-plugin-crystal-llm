@@ -14,7 +14,7 @@ class InferenceUserInput:
 
     upload_id: str
     raw_input: str
-    generate_cif: bool = True
+    generate_cif: bool = False
 
 
 @dataclass
@@ -32,7 +32,7 @@ class InferenceInput:
     upload_id: str
     user_id: str
     raw_input: str
-    generate_cif: bool = True
+    generate_cif: bool = False
 
 
 @dataclass
@@ -80,9 +80,13 @@ class InferenceResultsInput:
     - user_id: User making the request
     - generate_cif: If True, the model will generate CIF files.
     - generated_samples: List to store generated samples from the model.
+    - cif_dir: Directory to save CIF files. If empty, uses the upload's raw directory.
+    - cif_prefix: Prefix for the generated CIF files: <cif_prefix>_<index>.cif
     """
 
     upload_id: str
     user_id: str
     generated_samples: list[str]
     generate_cif: bool
+    cif_dir: str = ''  # empty string means the upload's raw directory
+    cif_prefix: str = 'sample'

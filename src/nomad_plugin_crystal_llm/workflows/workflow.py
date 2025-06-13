@@ -16,7 +16,7 @@ with workflow.unsafe.imports_passed_through():
     )
 
 
-@workflow.defn(name="nomad_plugin_crystal_llm.workflows.InferenceWorkflow")
+@workflow.defn(name='nomad_plugin_crystal_llm.workflows.InferenceWorkflow')
 class InferenceWorkflow:
     @workflow.run
     async def run(self, data: InferenceInput) -> list[str]:
@@ -43,6 +43,7 @@ class InferenceWorkflow:
                 upload_id=data.upload_id,
                 generated_samples=generated_samples,
                 generate_cif=data.generate_cif,
+                cif_dir=workflow.info().workflow_id,
             ),
             start_to_close_timeout=timedelta(seconds=60),
         )

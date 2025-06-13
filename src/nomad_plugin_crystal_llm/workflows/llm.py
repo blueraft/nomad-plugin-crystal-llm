@@ -140,12 +140,22 @@ def write_cif_files(result: InferenceResultsInput) -> None:
     """
     Write the generated CIFs to the specified target (console or file).
     """
+    if not result.generate_cif:
+        return
     upload_files = get_upload_files(result.upload_id, result.user_id)
-    if upload_files and result.generate_cif:
-        if result.generate_cif:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                for k, sample in enumerate(result.generated_samples):
-                    fname = os.path.join(tmpdir, f"sample_{k + 1}.cif")
-                    with open(fname, "wt", encoding="utf-8") as f:
-                        f.write(sample)
-                    upload_files.add_rawfiles(fname)
+    if not upload_files:
+        raise ValueError(
+            f'No upload files found for upload_id "{result.upload_id}" '
+            f'and user_id "{result.user_id}".'
+        )
+    cif_paths = []
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for k, sample in enumerate(result.generated_samples):
+            fname = os.path.join(tmpdir, f'{result.cif_prefix}_{k + 1}.cif')
+            with open(fname, 'w', encoding='utf-8') as f:
+                f.write(sample)
+            upload_files.add_rawfiles(fname, target_dir=result.cif_dir)
+            cif_paths.append(
+                os.path.join(result.cif_dir, f'{result.cif_prefix}_{k + 1}.cif')
+            )
+    return cif_paths

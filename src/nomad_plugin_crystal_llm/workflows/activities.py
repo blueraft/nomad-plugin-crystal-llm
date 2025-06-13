@@ -21,7 +21,7 @@ async def get_model(data: InferenceModelInput):
 async def construct_model_input(data: InferenceInput) -> str:
     # validates that the input is not empty
     if not data.raw_input:
-        raise ValueError("Input data cannot be empty.")
+        raise ValueError('Input data cannot be empty.')
     return data.raw_input
 
 
