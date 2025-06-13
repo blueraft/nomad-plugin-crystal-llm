@@ -348,29 +348,26 @@ class CrystaLLMInference(EntryData):
     def process_generated_cif(self, archive, logger):
         """
         Process the CIF file in `archive.data.results` and populates
-        `archive.results.material.topology`.
+        `archive.results.material`.
         """
+
+        archive.results.material = Material()
+
         # Read the reference CIF files and convert them into ase atoms
         if not self.results:
             return
         ase_atoms_list = []
         for result in self.results:
-            cif_file = result.cif_file
-            if not cif_file or not cif_file.endswith('.cif'):
-                logger.warn(
-                    f'Cannot parse structure file: {cif_file}. '
-                    'Should be a "*.cif" file.'
-                )
+            cif_file = result.generated_cif
+            if not cif_file:
                 continue
             with archive.m_context.raw_file(cif_file) as file:
                 try:
                     ase_atoms_list.append(read(file.name))
-                except RuntimeError:
-                    logger.warn(f'Cannot parse cif file: {cif_file}.')
-
-        # Let's save the composition and structure into archive.results.material
-        if not archive.results.material:
-            archive.results.material = Material()
+                except RuntimeError as e:
+                    logger.warn(f'Cannot parse cif file: {cif_file}. Error: {e}')
+        if not ase_atoms_list:
+            return
 
         # populate elemets from a set aof all the elemsts in ase_atoms
         elements = set()
@@ -417,7 +414,7 @@ class CrystaLLMInference(EntryData):
         # connect `data.reference_structures[i].system` and
         # `results.material.topology[j]` using the label
         for i, label in enumerate(labels):
-            self.results[i].system = topology_m_proxies[label]
+            self.results[i].generated_structure = topology_m_proxies[label]
 
     def normalize(self, archive, logger=None):
         """
