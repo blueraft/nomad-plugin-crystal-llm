@@ -248,6 +248,15 @@ class InferenceSettingsForm(InferenceSettings, RunWorkflowAction):
             upload_id=archive.metadata.upload_id,
             raw_input=self.prompt,
             generate_cif=True,
+            model_path=f'models/{self.model}/ckpt.pt',
+            model_url=f'https://zenodo.org/records/10642388/files/{self.model}.tar.gz',
+            num_samples=self.num_samples,
+            max_new_tokens=self.max_new_tokens,
+            temperature=self.temperature,
+            top_k=self.top_k,
+            seed=self.seed,
+            dtype=self.dtype,
+            compile=self.compile,
         )
         workflow_name = 'nomad_plugin_crystal_llm.workflows.InferenceWorkflow'
         workflow_id = orchestrator_utils.run_workflow(
