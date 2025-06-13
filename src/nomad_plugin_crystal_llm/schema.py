@@ -9,7 +9,7 @@ from nomad.datamodel.metainfo.annotations import (
     SectionProperties,
 )
 from nomad.datamodel.results import Material, SymmetryNew, System
-from nomad.metainfo import Category, Quantity, SchemaPackage, Section
+from nomad.metainfo import Category, Quantity, SchemaPackage, Section, SubSection
 from nomad.normalizing.common import nomad_atoms_from_ase_atoms
 from nomad.normalizing.topology import add_system, add_system_info
 
@@ -61,11 +61,17 @@ class WorkflowSection(ArchiveSection):
         """Normalize the section to ensure it is ready for processing."""
         super().normalize(archive, logger)
         if self.trigger_run_workflow:
-            self.run_workflow(archive, logger)
+            try:
+                self.run_workflow(archive, logger)
+            except Exception as e:
+                logger.error(f'Error running workflow: {e}. ')
             self.trigger_run_workflow = False
 
         if self.trigger_workflow_status:
-            self.workflow_status(archive, logger)
+            try:
+                self.workflow_status(archive, logger)
+            except Exception as e:
+                logger.error(f'Error getting workflow status: {e}. ')
             self.trigger_workflow_status = False
 
 
@@ -160,12 +166,10 @@ class CrystaLLMInferenceResult(ArchiveSection):
     )
     status = Quantity(
         type=str,
-        default='pending',
         description='Status of the inference result.',
     )
     cif_file = Quantity(
         type=str,
-        default='',
         description='Path to the CIF file generated from the inference result.',
     )
     system = Quantity(
@@ -206,42 +210,47 @@ class CrystaLLMInference(WorkflowSection, EntryData):
     )
     prompts = Quantity(
         type=str,
+        shape=['*'],
         description='Prompt to be used for inference.',
-        repeat=True,
         a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
     )
-    inference_settings = Quantity(
-        type=CrystaLLMInferenceSettings,
+    inference_settings = SubSection(
+        section_def=CrystaLLMInferenceSettings,
         description='Settings for the CrystaLLM inference workflow.',
     )
-    results = Quantity(
-        type=CrystaLLMInferenceResult,
+    results = SubSection(
+        section_def=CrystaLLMInferenceResult,
         description='Results of the inference workflow.',
-        repeat=True,
+        repeats=True,
     )
 
     def run_workflow(self, archive, logger=None):
         """
         Run the CrystaLLM inference workflow with the provided archive.
-        This method should be implemented to perform the actual inference logic.
+        Uses the first author's credentials to run the workflow.
         """
         self.results = []
+        if not archive.metadata.authors:
+            logger.warn(
+                'No authors found in the archive metadata. '
+                'Cannot run CrystaLLM inference workflow.'
+            )
+            return
         input_data = InferenceInput(
-            user_id=archive.metadata.user_id,
+            user_id=archive.metadata.authors[0].user_id,
             upload_id=archive.metadata.upload_id,
             raw_input='',
             generate_cif=True,
         )
         for prompt in self.prompts:
             input_data.raw_input = prompt
-            workflow_id = run_llm_workflow(input_data)
+            workflow_id = asyncio.run(run_llm_workflow(input_data))
             self.results.append(
                 CrystaLLMInferenceResult(
                     workflow_id=workflow_id,
                     prompt=prompt,
                 )
             )
-            workflow_id = asyncio.run(run_llm_workflow(input_data))
 
     def workflow_status(self, archive, logger=None):
         """
