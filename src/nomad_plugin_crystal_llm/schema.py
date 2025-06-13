@@ -23,32 +23,39 @@ class InferenceCategory(EntryDataCategory):
 class WorkflowSection(ArchiveSection):
     """Abstract section to run inference workflows"""
 
-    trigger_run_inference = Quantity(
+    trigger_run_workflow = Quantity(
         type=bool,
-        default=False,
-        description='Trigger to run the inference workflow.',
+        description='Trigger to run the workflow.',
         a_eln=ELNAnnotation(
             component=ELNComponentEnum.ActionEditQuantity, label='Run Inference'
         ),
     )
+    trigger_workflow_status = Quantity(
+        type=bool,
+        description='Trigger to get the status of the workflow.',
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.ActionEditQuantity, label='Get Workflow Status'
+        ),
+    )
 
-    @abstractmethod
     def run_workflow(self, archive, logger=None):
-        """Run the inference workflow with the provided archive."""
+        """Run the workflow with the provided archive."""
+        raise NotImplementedError('This method should be implemented in subclasses.')
+
+    def workflow_status(self, archive, logger=None):
+        """Get the status of the workflow."""
         raise NotImplementedError('This method should be implemented in subclasses.')
 
     def normalize(self, archive, logger=None):
         """Normalize the section to ensure it is ready for processing."""
         super().normalize(archive, logger)
-        if self.trigger_run_inference:
+        if self.trigger_run_workflow:
             self.run_workflow(archive, logger)
-            self.trigger_run_inference = False
+            self.trigger_run_workflow = False
 
-        # Ensure that the model path and URL are set
-        if not self.model_path or not self.model_url:
-            raise ValueError('Model path and URL must be specified to run inference.')
-
-        # Additional normalization logic can be added here
+        if self.trigger_workflow_status:
+            self.workflow_status(archive, logger)
+            self.trigger_workflow_status = False
 
 
 class CrystaLLMInferenceSettings(ArchiveSection):
@@ -207,6 +214,33 @@ class CrystaLLMInference(WorkflowSection, EntryData):
         Run the CrystaLLM inference workflow with the provided archive.
         This method should be implemented to perform the actual inference logic.
         """
+        self.results = []
+        input_data = InferenceInput(
+            user_id=archive.metadata.user_id,
+            upload_id=archive.metadata.upload_id,
+            raw_input='',
+            generate_cif=True,
+        )
+        for prompt in self.prompts:
+            input_data.raw_input = prompt
+            workflow_id = run_llm_workflow(input_data)
+            self.results.append(
+                CrystaLLMInferenceResult(
+                    workflow_id=workflow_id,
+                    prompt=prompt,
+                )
+            )
+            workflow_id = asyncio.run(run_llm_workflow(input_data))
+
+    def workflow_status(self, archive, logger=None):
+        """
+        Get the status of the CrystaLLM inference workflow.
+        This method should be implemented to retrieve the status of the workflow.
+        """
+        for result in self.results:
+            status = asyncio.run(get_workflow_status(result.workflow_id))
+            result.status = status
+
     def process_generated_cif(self, archive, logger):
         """
         Process the CIF file in `archive.data.results` and populates
