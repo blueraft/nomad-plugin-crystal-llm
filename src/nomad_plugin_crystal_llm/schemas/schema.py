@@ -22,12 +22,12 @@ class InferenceCategory(EntryDataCategory):
     """Category for inference workflows."""
 
     m_def = Category(
-        label='Inference Workflows',
+        name='Inference Workflows',
         categories=[EntryDataCategory],
     )
 
 
-class WorkflowSection(ArchiveSection):
+class RunWorkflowAction(ArchiveSection):
     """Abstract section to run inference workflows"""
 
     trigger_run_workflow = Quantity(
@@ -37,20 +37,9 @@ class WorkflowSection(ArchiveSection):
             component=ELNComponentEnum.ActionEditQuantity, label='Run Inference'
         ),
     )
-    trigger_workflow_status = Quantity(
-        type=bool,
-        description='Trigger to get the status of the workflow.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.ActionEditQuantity, label='Get Workflow Status'
-        ),
-    )
 
     def run_workflow(self, archive, logger=None):
         """Run the workflow with the provided archive."""
-        raise NotImplementedError('This method should be implemented in subclasses.')
-
-    def workflow_status(self, archive, logger=None):
-        """Get the status of the workflow."""
         raise NotImplementedError('This method should be implemented in subclasses.')
 
     def normalize(self, archive, logger=None):
@@ -63,12 +52,32 @@ class WorkflowSection(ArchiveSection):
                 logger.error(f'Error running workflow: {e}. ')
             self.trigger_run_workflow = False
 
+
+class GetWorkflowStatusAction(ArchiveSection):
+    """Abstract section to get the status of inference workflows"""
+
+    trigger_workflow_status = Quantity(
+        type=bool,
+        description='Trigger to get the status of the workflow.',
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.ActionEditQuantity, label='Get Workflow Status'
+        ),
+    )
+
+    def workflow_status(self, archive, logger=None):
+        """Get the status of the workflow."""
+        raise NotImplementedError('This method should be implemented in subclasses.')
+
+    def normalize(self, archive, logger=None):
+        """Normalize the section to ensure it is ready for processing."""
+        super().normalize(archive, logger)
         if self.trigger_workflow_status:
             try:
                 self.workflow_status(archive, logger)
             except Exception as e:
                 logger.error(f'Error getting workflow status: {e}. ')
-            self.trigger_workflow_status = False
+            finally:
+                self.trigger_workflow_status = False
 
 
 class InferenceSettings(ArchiveSection):
@@ -214,7 +223,7 @@ class InferenceResult(ArchiveSection):
     )
 
 
-class CrystaLLMInference(WorkflowSection, EntryData):
+class CrystaLLMInference(EntryData, RunWorkflowAction, GetWorkflowStatusAction):
     """
     Section for running CrystaLLM inference workflows.
     """
@@ -227,9 +236,9 @@ class CrystaLLMInference(WorkflowSection, EntryData):
                 order=[
                     'name',
                     'description',
-                    'prompts',
-                    'trigger_run_inference',
-                    'inference_settings',
+                    'trigger_run_workflow',
+                    'trigger_workflow_status',
+                    'inference_form',
                     'results',
                 ]
             ),
