@@ -6,7 +6,7 @@ from nomad.datamodel.metainfo.annotations import (
     ELNComponentEnum,
     SectionProperties,
 )
-from nomad.datamodel.results import Material, SymmetryNew, System
+from nomad.datamodel.results import Material, Results, SymmetryNew, System
 from nomad.metainfo import Category, MEnum, Quantity, SchemaPackage, Section, SubSection
 from nomad.normalizing.common import nomad_atoms_from_ase_atoms
 from nomad.normalizing.topology import add_system, add_system_info
@@ -60,17 +60,10 @@ class GetWorkflowStatusAction(ArchiveSection):
     workflow_id = Quantity(
         type=str,
         description='ID of the `temporalio` workflow.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.StringEditQuantity,
-            label='Workflow ID',
-        ),
     )
     status = Quantity(
         type=str,
         description='Status of the inference workflow.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.StringEditQuantity,
-        ),
     )
     trigger_workflow_status = Quantity(
         type=bool,
@@ -154,8 +147,8 @@ class InferenceSettings(ArchiveSection):
     )
 
 
-class InferenceSettingsFixed(InferenceSettings):
-    """Settings for CrystaLLM inference workflows with non-editable fields."""
+class InferenceSettingsUsed(InferenceSettings):
+    """Settings used for CrystaLLM inference workflows with non-editable fields."""
 
 
 class InferenceSettingsForm(InferenceSettings, RunWorkflowAction):
@@ -179,55 +172,55 @@ class InferenceSettingsForm(InferenceSettings, RunWorkflowAction):
         )
     )
 
-    prompt = InferenceSettings.prompt.m_copy()
+    prompt = InferenceSettings.prompt.m_copy(deep=True)
     prompt.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.RichTextEditQuantity,
         props=dict(height=150),
     )
 
-    model = InferenceSettings.model.m_copy()
+    model = InferenceSettings.model.m_copy(deep=True)
     model.default = 'crystallm_v1_small'
     model.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.EnumEditQuantity,
     )
 
-    num_samples = InferenceSettings.num_samples.m_copy()
+    num_samples = InferenceSettings.num_samples.m_copy(deep=True)
     num_samples.default = 1
     num_samples.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.NumberEditQuantity,
     )
 
-    max_new_tokens = InferenceSettings.max_new_tokens.m_copy()
+    max_new_tokens = InferenceSettings.max_new_tokens.m_copy(deep=True)
     max_new_tokens.default = 3000
     max_new_tokens.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.NumberEditQuantity,
     )
 
-    temperature = InferenceSettings.temperature.m_copy()
+    temperature = InferenceSettings.temperature.m_copy(deep=True)
     temperature.default = 0.8
     temperature.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.NumberEditQuantity,
     )
 
-    top_k = InferenceSettings.top_k.m_copy()
+    top_k = InferenceSettings.top_k.m_copy(deep=True)
     top_k.default = 10
     top_k.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.NumberEditQuantity,
     )
 
-    seed = InferenceSettings.seed.m_copy()
+    seed = InferenceSettings.seed.m_copy(deep=True)
     seed.default = 1337
     seed.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.NumberEditQuantity,
     )
 
-    dtype = InferenceSettings.dtype.m_copy()
+    dtype = InferenceSettings.dtype.m_copy(deep=True)
     dtype.default = 'bfloat16'
     dtype.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.EnumEditQuantity,
     )
 
-    compile = InferenceSettings.compile.m_copy()
+    compile = InferenceSettings.compile.m_copy(deep=True)
     compile.default = False
     compile.m_annotations['eln'] = ELNAnnotation(
         component=ELNComponentEnum.BoolEditQuantity,
@@ -298,7 +291,7 @@ class InferenceResult(GetWorkflowStatusAction):
         description='Reference to the system normalized based on the generated CIF.',
     )
     inference_settings = SubSection(
-        section_def=InferenceSettingsFixed,
+        section_def=InferenceSettingsUsed,
         description='Settings used for the CrystaLLM inference workflow.',
     )
 
@@ -350,12 +343,11 @@ class CrystaLLMInference(EntryData):
         Process the CIF file in `archive.data.results` and populates
         `archive.results.material`.
         """
-
-        archive.results.material = Material()
-
-        # Read the reference CIF files and convert them into ase atoms
         if not self.results:
             return
+        archive.results = Results(material=Material())
+
+        # Read the reference CIF files and convert them into ase atoms
         ase_atoms_list = []
         for result in self.results:
             cif_file = result.generated_cif
