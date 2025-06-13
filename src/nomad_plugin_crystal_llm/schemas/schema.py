@@ -1,5 +1,3 @@
-import asyncio
-
 from ase.io import read
 from matid import SymmetryAnalyzer
 from nomad.datamodel.data import ArchiveSection, EntryData, EntryDataCategory
@@ -9,7 +7,7 @@ from nomad.datamodel.metainfo.annotations import (
     SectionProperties,
 )
 from nomad.datamodel.results import Material, SymmetryNew, System
-from nomad.metainfo import Category, Quantity, SchemaPackage, Section, SubSection
+from nomad.metainfo import Category, MEnum, Quantity, SchemaPackage, Section, SubSection
 from nomad.normalizing.common import nomad_atoms_from_ase_atoms
 from nomad.normalizing.topology import add_system, add_system_info
 from nomad.orchestrator import util as orchestrator_utils
@@ -73,106 +71,135 @@ class WorkflowSection(ArchiveSection):
             self.trigger_workflow_status = False
 
 
-class CrystaLLMInferenceSettings(ArchiveSection):
+class InferenceSettings(ArchiveSection):
     """Settings for CrystaLLM inference workflows."""
 
-    model_path = Quantity(
-        type=str,
-        default='models/crystallm_v1_small/ckpt.pt',
-        description='Path to the model file.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.StringEditQuantity,
+    model = Quantity(
+        type=MEnum(
+            [
+                'crystallm_v1_small',
+                'crystallm_v1_large',
+            ]
         ),
+        description="""
+        Model used for inference.
+        | Available models                                 | Description                                                                         |
+        |--------------------------------------------------|-------------------------------------------------------------------------------------|
+        | **crystallm_v1_small  (25.36M parameters)**      | Downloadable at https://zenodo.org/records/10642388/files/crystallm_v1_small.tar.gz |
+        | **crystallm_v1_large  (1.2B parameters)**        | Downloadable at https://zenodo.org/records/10642388/files/crystallm_v1_large.tar.gz |
+        """,  # noqa: E501
     )
-    model_url = Quantity(
+    prompt = Quantity(
         type=str,
-        default='https://zenodo.org/records/10642388/files/crystallm_v1_small.tar.gz',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.StringEditQuantity,
-        ),
+        description='Prompt to be used for inference.',
     )
     num_samples = Quantity(
         type=int,
-        default=2,
         description='Number of samples to draw during inference.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-        ),
     )
     max_new_tokens = Quantity(
         type=int,
-        default=3000,
         description='Maximum number of tokens to generate in each sample.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-        ),
     )
     temperature = Quantity(
         type=float,
-        default=0.8,
         description='Controls the randomness of predictions. Lower values make the '
         'model more deterministic, while higher values increase randomness.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-            minValue=0.0,
-        ),
     )
     top_k = Quantity(
         type=int,
-        default=10,
-        description='Retain only the top_k most likely tokens, clamp others to have 0 probability.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-        ),
+        description='Retain only the top_k most likely tokens, clamp others to have 0 '
+        'probability.',
     )
     seed = Quantity(
         type=int,
-        default=1337,
         description='Random seed for reproducibility.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.NumberEditQuantity,
-        ),
     )
     dtype = Quantity(
-        type=str,
-        default='bfloat16',
+        type=MEnum(['float32', 'bfloat16', 'float16']),
         description='Data type for the model (e.g., "float32", "bfloat16", "float16").',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.StringEditQuantity,
-        ),
     )
     compile = Quantity(
         type=bool,
-        default=False,
         description='Whether to compile the model for faster inference.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.BoolEditQuantity,
-        ),
     )
 
 
-class CrystaLLMInferenceResult(ArchiveSection):
+class InferenceSettingsFixed(InferenceSettings):
+    """Settings for CrystaLLM inference workflows with non-editable fields."""
+
+
+class InferenceSettingsForm(InferenceSettings):
+    """Settings form for CrystaLLM inference workflows with editable fields."""
+
+    model = InferenceSettings.model.m_copy()
+    model.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.EnumEditQuantity,
+        default='crystallm_v1_small',
+    )
+    prompt = InferenceSettings.prompt.m_copy()
+    prompt.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.StringEditQuantity,
+    )
+    num_samples = InferenceSettings.num_samples.m_copy()
+    num_samples.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+        default=1,
+    )
+    max_new_tokens = InferenceSettings.max_new_tokens.m_copy()
+    max_new_tokens.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+        default=3000,
+    )
+    temperature = InferenceSettings.temperature.m_copy()
+    temperature.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+        default=0.8,
+    )
+    top_k = InferenceSettings.top_k.m_copy()
+    top_k.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+        default=10,
+    )
+    seed = InferenceSettings.seed.m_copy()
+    seed.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.NumberEditQuantity,
+        default=1337,
+    )
+    dtype = InferenceSettings.dtype.m_copy()
+    dtype.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.EnumEditQuantity,
+        default='bfloat16',
+    )
+    compile = InferenceSettings.compile.m_copy()
+    compile.m_annotation = ELNAnnotation(
+        component=ELNComponentEnum.BoolEditQuantity,
+        default=False,
+    )
+
+
+class InferenceResult(ArchiveSection):
     """Result of a CrystaLLM inference workflow."""
 
     workflow_id = Quantity(
         type=str,
-        description='ID of the workflow that generated this result.',
-    )
-    prompt = Quantity(
-        type=str,
-        description='Prompt used for the inference.',
+        description='ID of the `temporalio` workflow that generated this result.',
     )
     status = Quantity(
         type=str,
         description='Status of the inference result.',
     )
-    cif_file = Quantity(
+    generated_cif = Quantity(
         type=str,
-        description='Path to the CIF file generated from the inference result.',
+        description='Path to the CIF generated by the LLM.',
     )
-    system = Quantity(
+    generated_structure = Quantity(
         type=System,
-        description='Reference to the system normalized from the CIF file.',
+        description='Reference to the system normalized based on the generated CIF.',
+    )
+    inference_settings = SubSection(
+        section_def=InferenceSettingsFixed,
+        description='Settings used for the CrystaLLM inference workflow.',
     )
 
 
@@ -206,18 +233,12 @@ class CrystaLLMInference(WorkflowSection, EntryData):
         description='Description of the inference workflow.',
         a_eln=ELNAnnotation(component=ELNComponentEnum.RichTextEditQuantity),
     )
-    prompts = Quantity(
-        type=str,
-        shape=['*'],
-        description='Prompt to be used for inference.',
-        a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
-    )
-    inference_settings = SubSection(
-        section_def=CrystaLLMInferenceSettings,
+    inference_form = SubSection(
+        section_def=InferenceSettingsForm,
         description='Settings for the CrystaLLM inference workflow.',
     )
     results = SubSection(
-        section_def=CrystaLLMInferenceResult,
+        section_def=InferenceResult,
         description='Results of the inference workflow.',
         repeats=True,
     )
@@ -247,7 +268,7 @@ class CrystaLLMInference(WorkflowSection, EntryData):
                 workflow_name=workflow_name, data=input_data, task_queue=TaskQueue.GPU
             )
             self.results.append(
-                CrystaLLMInferenceResult(
+                InferenceResult(
                     workflow_id=workflow_id,
                     prompt=prompt,
                 )
