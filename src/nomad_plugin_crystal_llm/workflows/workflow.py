@@ -40,12 +40,12 @@ class InferenceWorkflow:
         await workflow.execute_activity(
             get_model,
             model_data,
-            start_to_close_timeout=timedelta(seconds=120),
+            start_to_close_timeout=timedelta(seconds=600),
         )
         generated_samples = await workflow.execute_activity(
             run_inference,
             model_data,
-            start_to_close_timeout=timedelta(seconds=120),
+            start_to_close_timeout=timedelta(seconds=600),
         )
         await workflow.execute_activity(
             write_results,
