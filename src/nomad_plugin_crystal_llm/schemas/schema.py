@@ -1,5 +1,6 @@
 from ase.io import read
 from matid import SymmetryAnalyzer
+from nomad.app.v1.routers.uploads import get_upload_with_read_access
 from nomad.datamodel.data import ArchiveSection, EntryData, EntryDataCategory
 from nomad.datamodel.metainfo.annotations import (
     ELNAnnotation,
@@ -21,10 +22,7 @@ m_package = SchemaPackage()
 class InferenceCategory(EntryDataCategory):
     """Category for inference workflows."""
 
-    m_def = Category(
-        name='Inference Workflows',
-        categories=[EntryDataCategory],
-    )
+    m_def = Category(label='Inference Workflows', categories=[EntryDataCategory])
 
 
 class RunWorkflowAction(ArchiveSection):
@@ -54,45 +52,6 @@ class RunWorkflowAction(ArchiveSection):
             self.trigger_run_workflow = False
 
 
-class GetWorkflowStatusAction(ArchiveSection):
-    """Abstract section to get the status of inference workflows"""
-
-    workflow_id = Quantity(
-        type=str,
-        description='ID of the `temporalio` workflow.',
-    )
-    status = Quantity(
-        type=str,
-        description='Status of the inference workflow.',
-    )
-    trigger_workflow_status = Quantity(
-        type=bool,
-        description='Fetches the status of the inference workflow for given workflow '
-        'id.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.ActionEditQuantity,
-            label='Get Inference Workflow Status',
-        ),
-    )
-
-    def workflow_status(self):
-        """Get the status of the workflow."""
-        status = orchestrator_utils.get_workflow_status(self.workflow_id)
-        if status:
-            self.status = status.name
-
-    def normalize(self, archive, logger=None):
-        """Normalize the section to ensure it is ready for processing."""
-        super().normalize(archive, logger)
-        if self.trigger_workflow_status:
-            try:
-                self.workflow_status()
-            except Exception as e:
-                logger.error(f'Error getting workflow status: {e}. ')
-            finally:
-                self.trigger_workflow_status = False
-
-
 class InferenceSettings(ArchiveSection):
     """Settings for CrystaLLM inference workflows."""
 
@@ -110,10 +69,6 @@ class InferenceSettings(ArchiveSection):
         | **crystallm_v1_small  (25.36M parameters)**      | Downloadable at https://zenodo.org/records/10642388/files/crystallm_v1_small.tar.gz |
         | **crystallm_v1_large  (1.2B parameters)**        | Downloadable at https://zenodo.org/records/10642388/files/crystallm_v1_large.tar.gz |
         """,  # noqa: E501
-    )
-    prompt = Quantity(
-        type=str,
-        description='Prompt to be used for inference.',
     )
     num_samples = Quantity(
         type=int,
@@ -147,36 +102,8 @@ class InferenceSettings(ArchiveSection):
     )
 
 
-class InferenceSettingsUsed(InferenceSettings):
-    """Settings used for CrystaLLM inference workflows with non-editable fields."""
-
-
-class InferenceSettingsForm(InferenceSettings, RunWorkflowAction):
-    """Settings form for CrystaLLM inference workflows with editable fields."""
-
-    m_def = Section(
-        a_eln=ELNAnnotation(
-            overview=True,
-            order=[
-                'prompt',
-                'model',
-                'num_samples',
-                'max_new_tokens',
-                'temperature',
-                'top_k',
-                'seed',
-                'dtype',
-                'compile',
-                'trigger_run_workflow',
-            ],
-        )
-    )
-
-    prompt = InferenceSettings.prompt.m_copy(deep=True)
-    prompt.m_annotations['eln'] = ELNAnnotation(
-        component=ELNComponentEnum.RichTextEditQuantity,
-        props=dict(height=150),
-    )
+class InferenceSettingsForm(ArchiveSection):
+    """Settings used for CrystaLLM inference workflows with editable fields."""
 
     model = InferenceSettings.model.m_copy(deep=True)
     model.default = 'crystallm_v1_small'
@@ -226,6 +153,31 @@ class InferenceSettingsForm(InferenceSettings, RunWorkflowAction):
         component=ELNComponentEnum.BoolEditQuantity,
     )
 
+
+class InferenceForm(RunWorkflowAction):
+    """Settings form for CrystaLLM inference workflows with editable fields."""
+
+    m_def = Section(
+        a_eln=ELNAnnotation(
+            overview=True,
+            order=[
+                'prompt',
+                'trigger_run_workflow',
+                'inference_settings',
+            ],
+        )
+    )
+
+    prompt = Quantity(
+        type=str,
+        description='Prompt to be used for inference.',
+        a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
+    )
+    inference_settings = SubSection(
+        section_def=InferenceSettingsForm,
+        description='Settings for the CrystaLLM inference workflow.',
+    )
+
     def run_workflow(self, archive, logger=None):
         """
         Run the CrystaLLM inference workflow with the provided archive.
@@ -243,47 +195,49 @@ class InferenceSettingsForm(InferenceSettings, RunWorkflowAction):
                 'Cannot run CrystaLLM inference workflow.'
             )
             return
+        if not self.inference_settings:
+            self.inference_settings = InferenceSettingsForm()
         input_data = InferenceInput(
             user_id=archive.metadata.authors[0].user_id,
             upload_id=archive.metadata.upload_id,
             raw_input=self.prompt,
             generate_cif=True,
-            model_path=f'models/{self.model}/ckpt.pt',
-            model_url=f'https://zenodo.org/records/10642388/files/{self.model}.tar.gz',
-            num_samples=self.num_samples,
-            max_new_tokens=self.max_new_tokens,
-            temperature=self.temperature,
-            top_k=self.top_k,
-            seed=self.seed,
-            dtype=self.dtype,
-            compile=self.compile,
+            model_path=f'models/{self.inference_settings.model}/ckpt.pt',
+            model_url=(
+                'https://zenodo.org/records/10642388/files/'
+                f'{self.inference_settings.model}.tar.gz'
+            ),
+            num_samples=self.inference_settings.num_samples,
+            max_new_tokens=self.inference_settings.max_new_tokens,
+            temperature=self.inference_settings.temperature,
+            top_k=self.inference_settings.top_k,
+            seed=self.inference_settings.seed,
+            dtype=self.inference_settings.dtype,
+            compile=self.inference_settings.compile,
         )
         workflow_name = 'nomad_plugin_crystal_llm.workflows.InferenceWorkflow'
         workflow_id = orchestrator_utils.run_workflow(
             workflow_name=workflow_name, data=input_data, task_queue=TaskQueue.GPU
         )
-        archive.data.results.append(
-            InferenceResult(
-                workflow_id=workflow_id,
-                prompt=self.prompt,
-                inference_settings=InferenceSettingsUsed(
-                    model=self.model,
-                    prompt=self.prompt,
-                    num_samples=self.num_samples,
-                    max_new_tokens=self.max_new_tokens,
-                    temperature=self.temperature,
-                    top_k=self.top_k,
-                    seed=self.seed,
-                    dtype=self.dtype,
-                    compile=self.compile,
-                ),
-            )
+        result = InferenceResult(
+            workflow_id=workflow_id,
+            prompt=self.prompt,
         )
-        # Clear the prompt after running the workflow
-        self.prompt = ''
+        result.m_setdefault('inference_settings')
+        result.inference_settings.model = self.inference_settings.model
+        result.inference_settings.num_samples = self.inference_settings.num_samples
+        result.inference_settings.max_new_tokens = (
+            self.inference_settings.max_new_tokens
+        )
+        result.inference_settings.temperature = self.inference_settings.temperature
+        result.inference_settings.top_k = self.inference_settings.top_k
+        result.inference_settings.seed = self.inference_settings.seed
+        result.inference_settings.dtype = self.inference_settings.dtype
+        result.inference_settings.compile = self.inference_settings.compile
+        archive.data.results.append(result)
 
 
-class InferenceResult(GetWorkflowStatusAction):
+class InferenceResult(ArchiveSection):
     """Result of a CrystaLLM inference workflow."""
 
     m_def = Section(
@@ -291,17 +245,38 @@ class InferenceResult(GetWorkflowStatusAction):
         a_eln=ELNAnnotation(
             properties=SectionProperties(
                 order=[
+                    'prompt',
                     'workflow_id',
                     'status',
+                    'trigger_workflow_status',
                     'generated_cifs',
                     'generated_structures',
                     'inference_settings',
-                    'trigger_workflow_status',
                 ]
             ),
         ),
     )
-
+    prompt = Quantity(
+        type=str,
+        description='Prompt to be used for inference.',
+    )
+    workflow_id = Quantity(
+        type=str,
+        description='ID of the `temporalio` workflow.',
+    )
+    status = Quantity(
+        type=str,
+        description='Status of the inference workflow.',
+    )
+    trigger_workflow_status = Quantity(
+        type=bool,
+        description='Fetches the status of the inference workflow for given workflow '
+        'id.',
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.ActionEditQuantity,
+            label='Get Inference Workflow Status',
+        ),
+    )
     generated_cifs = Quantity(
         type=str,
         shape=['*'],
@@ -313,9 +288,46 @@ class InferenceResult(GetWorkflowStatusAction):
         description='Reference to the system normalized based on the generated CIF.',
     )
     inference_settings = SubSection(
-        section_def=InferenceSettingsUsed,
+        section_def=InferenceSettings,
         description='Settings used for the CrystaLLM inference workflow.',
     )
+
+    def workflow_status(self):
+        """Get the status of the workflow."""
+        status = orchestrator_utils.get_workflow_status(self.workflow_id)
+        if status:
+            self.status = status.name
+
+    def get_cif_paths(self, archive):
+        """
+        Get the paths of the generated CIFs from the archive.
+        This method is used to retrieve the CIF paths after the workflow has completed.
+        """
+        self.generated_cifs = []
+        upload = get_upload_with_read_access(
+            archive.m_context.upload_id,
+            archive.metadata.authors[0],
+            include_others=True,
+        )
+        if upload.upload_files.raw_path_exists(self.workflow_id):
+            raw_path_info_list = upload.upload_files.raw_directory_list(
+                self.workflow_id, files_only=True
+            )
+            for raw_path_info in raw_path_info_list:
+                self.generated_cifs.append(raw_path_info.path)
+
+    def normalize(self, archive, logger=None):
+        """Normalize the section to ensure it is ready for processing."""
+        super().normalize(archive, logger)
+        if self.trigger_workflow_status or self.status == 'RUNNING' or not self.status:
+            try:
+                self.workflow_status()
+            except Exception as e:
+                logger.error(f'Error getting workflow status: {e}. ')
+            finally:
+                self.trigger_workflow_status = False
+        if self.status == 'COMPLETED':
+            self.get_cif_paths(archive)
 
 
 class CrystaLLMInference(EntryData):
@@ -397,7 +409,6 @@ class CrystaLLMInference(EntryData):
                 symmetry.crystal_system = symmetry_analyzer.get_crystal_system()
                 symmetry.point_group = symmetry_analyzer.get_point_group()
 
-                # based on the `cif` path, label will always be unique
                 label = (
                     f'{ase_atoms.get_chemical_formula()}-{symmetry.space_group_number}'
                 )
@@ -430,8 +441,7 @@ class CrystaLLMInference(EntryData):
         """
         if not self.name:
             self.name = archive.metadata.mainfile.split('.', 1)[0]
-        if not self.inference_form:
-            self.inference_form = InferenceSettingsForm()
+        self.inference_form = InferenceForm()
         self.process_generated_cifs(archive, logger)
 
         super().normalize(archive, logger)
