@@ -25,7 +25,18 @@ class InferenceWorkflow:
             data,
             start_to_close_timeout=timedelta(seconds=60),
         )
-        model_data = InferenceModelInput(raw_input=raw_input)
+        model_data = InferenceModelInput(
+            raw_input=raw_input,
+            model_path=data.model_path,
+            model_url=data.model_url,
+            num_samples=data.num_samples,
+            max_new_tokens=data.max_new_tokens,
+            temperature=data.temperature,
+            top_k=data.top_k,
+            seed=data.seed,
+            dtype=data.dtype,
+            compile=data.compile,
+        )
         await workflow.execute_activity(
             get_model,
             model_data,

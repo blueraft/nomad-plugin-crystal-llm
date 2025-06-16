@@ -15,6 +15,17 @@ class InferenceUserInput:
     upload_id: str
     raw_input: str
     generate_cif: bool = False
+    model_path: str = 'models/crystallm_v1_small/ckpt.pt'
+    model_url: str = (
+        'https://zenodo.org/records/10642388/files/crystallm_v1_small.tar.gz'
+    )
+    num_samples: int = 2
+    max_new_tokens: int = 3000
+    temperature: float = 0.8
+    top_k: int = 10
+    seed: int = 1337
+    dtype: str = 'bfloat16'
+    compile: bool = False
 
 
 @dataclass
@@ -48,7 +59,7 @@ class InferenceInput:
     model_url: str = (
         'https://zenodo.org/records/10642388/files/crystallm_v1_small.tar.gz'
     )
-    num_samples: int = 1
+    num_samples: int = 2
     max_new_tokens: int = 3000
     temperature: float = 0.8
     top_k: int = 10

@@ -266,6 +266,17 @@ class InferenceSettingsForm(InferenceSettings, RunWorkflowAction):
             InferenceResult(
                 workflow_id=workflow_id,
                 prompt=self.prompt,
+                inference_settings=InferenceSettingsUsed(
+                    model=self.model,
+                    prompt=self.prompt,
+                    num_samples=self.num_samples,
+                    max_new_tokens=self.max_new_tokens,
+                    temperature=self.temperature,
+                    top_k=self.top_k,
+                    seed=self.seed,
+                    dtype=self.dtype,
+                    compile=self.compile,
+                ),
             )
         )
         # Clear the prompt after running the workflow
