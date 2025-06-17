@@ -54,6 +54,7 @@ class InferenceWorkflow:
                 upload_id=data.upload_id,
                 generated_samples=generated_samples,
                 generate_cif=data.generate_cif,
+                model_data=model_data,
                 cif_dir=workflow.info().workflow_id,
             ),
             start_to_close_timeout=timedelta(seconds=60),

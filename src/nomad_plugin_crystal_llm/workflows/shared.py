@@ -123,5 +123,6 @@ class InferenceResultsInput:
     user_id: str
     generated_samples: list[str]
     generate_cif: bool
+    model_data: InferenceModelInput
     cif_dir: str = ''  # empty string means the upload's raw directory
     cif_prefix: str = 'sample'

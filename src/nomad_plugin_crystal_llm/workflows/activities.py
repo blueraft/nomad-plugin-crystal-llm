@@ -39,6 +39,9 @@ async def write_results(data: InferenceResultsInput) -> None:
     """
     Write the inference results to a file.
     """
-    from .llm import write_cif_files
+    from .llm import write_cif_files, write_entry_archive
 
-    write_cif_files(data)
+    cif_paths = write_cif_files(data)
+    if not cif_paths:
+        raise ValueError('No CIF files were generated.')
+    write_entry_archive(cif_paths, data)

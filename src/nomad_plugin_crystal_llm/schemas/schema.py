@@ -154,6 +154,48 @@ class InferenceSettingsForm(ArchiveSection):
     )
 
 
+class InferenceStatus(ArchiveSection):
+    """Section to fetch the status of an inference workflow."""
+
+    m_def = Section(
+        a_eln=ELNAnnotation(
+            overview=True,
+            order=['workflow_id', 'trigger_workflow_status'],
+        )
+    )
+    workflow_id = Quantity(
+        type=str,
+        description='ID of the `temporalio` workflow.',
+        a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
+    )
+    status = Quantity(
+        type=str,
+        description='Status of the inference workflow.',
+    )
+    generated_entry = Quantity(
+        type=str,
+        description='Reference to the generated entry after the workflow completes.',
+    )
+
+    def normalize(self, archive, logger=None):
+        """Normalize the section to ensure it is ready for processing."""
+        super().normalize(archive, logger)
+        if not self.status or self.status == 'RUNNING':
+            try:
+                status = orchestrator_utils.get_workflow_status(self.workflow_id)
+                if status:
+                    self.status = status.name
+            except Exception as e:
+                logger.error(f'Error getting workflow status: {e}. ')
+            # if self.status == 'COMPLETED':
+            #     self.generated_entry = get_reference_from_mainfile(
+            #         archive,
+            #         mainfile=os.path.join(
+            #             self.workflow_id, 'crystallm_inference.archive.json'
+            #         ),
+            #     )
+
+
 class InferenceForm(RunWorkflowAction):
     """Settings form for CrystaLLM inference workflows with editable fields."""
 
@@ -219,25 +261,10 @@ class InferenceForm(RunWorkflowAction):
         workflow_id = orchestrator_utils.run_workflow(
             workflow_name=workflow_name, data=input_data, task_queue=TaskQueue.GPU
         )
-        result = InferenceResult(
-            workflow_id=workflow_id,
-            prompt=self.prompt,
-        )
-        result.m_setdefault('inference_settings')
-        result.inference_settings.model = self.inference_settings.model
-        result.inference_settings.num_samples = self.inference_settings.num_samples
-        result.inference_settings.max_new_tokens = (
-            self.inference_settings.max_new_tokens
-        )
-        result.inference_settings.temperature = self.inference_settings.temperature
-        result.inference_settings.top_k = self.inference_settings.top_k
-        result.inference_settings.seed = self.inference_settings.seed
-        result.inference_settings.dtype = self.inference_settings.dtype
-        result.inference_settings.compile = self.inference_settings.compile
-        archive.data.results.append(result)
+        # TODO: Add inference status section to the archive
 
 
-class InferenceResult(ArchiveSection):
+class CrystaLLMInferenceResult(EntryData):
     """Result of a CrystaLLM inference workflow."""
 
     m_def = Section(
@@ -264,19 +291,6 @@ class InferenceResult(ArchiveSection):
         type=str,
         description='ID of the `temporalio` workflow.',
     )
-    status = Quantity(
-        type=str,
-        description='Status of the inference workflow.',
-    )
-    trigger_workflow_status = Quantity(
-        type=bool,
-        description='Fetches the status of the inference workflow for given workflow '
-        'id.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.ActionEditQuantity,
-            label='Get Inference Workflow Status',
-        ),
-    )
     generated_cifs = Quantity(
         type=str,
         shape=['*'],
@@ -292,42 +306,10 @@ class InferenceResult(ArchiveSection):
         description='Settings used for the CrystaLLM inference workflow.',
     )
 
-    def workflow_status(self):
-        """Get the status of the workflow."""
-        status = orchestrator_utils.get_workflow_status(self.workflow_id)
-        if status:
-            self.status = status.name
-
-    def get_cif_paths(self, archive):
-        """
-        Get the paths of the generated CIFs from the archive.
-        This method is used to retrieve the CIF paths after the workflow has completed.
-        """
-        self.generated_cifs = []
-        upload = get_upload_with_read_access(
-            archive.m_context.upload_id,
-            archive.metadata.authors[0],
-            include_others=True,
-        )
-        if upload.upload_files.raw_path_exists(self.workflow_id):
-            raw_path_info_list = upload.upload_files.raw_directory_list(
-                self.workflow_id, files_only=True
-            )
-            for raw_path_info in raw_path_info_list:
-                self.generated_cifs.append(raw_path_info.path)
-
     def normalize(self, archive, logger=None):
         """Normalize the section to ensure it is ready for processing."""
         super().normalize(archive, logger)
-        if self.trigger_workflow_status or self.status == 'RUNNING' or not self.status:
-            try:
-                self.workflow_status()
-            except Exception as e:
-                logger.error(f'Error getting workflow status: {e}. ')
-            finally:
-                self.trigger_workflow_status = False
-        if self.status == 'COMPLETED':
-            self.get_cif_paths(archive)
+        # TODO: Add logic to normalize material and topology sections
 
 
 class CrystaLLMInference(EntryData):
@@ -366,8 +348,8 @@ class CrystaLLMInference(EntryData):
         section_def=InferenceForm,
         description='Settings for the CrystaLLM inference workflow.',
     )
-    results = SubSection(
-        section_def=InferenceResult,
+    inference_statuses = SubSection(
+        section_def=InferenceStatus,
         description='Results of the inference workflow.',
         repeats=True,
     )
@@ -442,7 +424,6 @@ class CrystaLLMInference(EntryData):
         if not self.name:
             self.name = archive.metadata.mainfile.split('.', 1)[0]
         self.m_setdefault('inference_form/inference_settings')
-        self.process_generated_cifs(archive, logger)
 
         super().normalize(archive, logger)
 
