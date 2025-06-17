@@ -441,7 +441,7 @@ class CrystaLLMInference(EntryData):
         """
         if not self.name:
             self.name = archive.metadata.mainfile.split('.', 1)[0]
-        self.inference_form = InferenceForm()
+        self.m_setdefault('inference_form/inference_settings')
         self.process_generated_cifs(archive, logger)
 
         super().normalize(archive, logger)
