@@ -182,9 +182,7 @@ def write_entry_archive(cif_paths, result: InferenceResultsInput) -> str:
         workflow_id=result.cif_dir,
         generated_cifs=cif_paths,
         inference_settings=InferenceSettings(
-            # model=result.model_data.model_url.rsplit('/', 1)[-1].split('.tar.gz')[
-            #     0
-            # ],
+            model=result.model_data.model_url.rsplit('/', 1)[-1].split('.tar.gz')[0],
             num_samples=result.model_data.num_samples,
             max_new_tokens=result.model_data.max_new_tokens,
             temperature=result.model_data.temperature,
