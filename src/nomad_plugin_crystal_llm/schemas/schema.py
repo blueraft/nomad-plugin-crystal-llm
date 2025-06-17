@@ -160,7 +160,6 @@ class InferenceStatus(ArchiveSection):
     workflow_id = Quantity(
         type=str,
         description='ID of the `temporalio` workflow.',
-        a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
     )
     status = Quantity(
         type=str,
@@ -169,6 +168,15 @@ class InferenceStatus(ArchiveSection):
     generated_entry = Quantity(
         type=str,
         description='Reference to the generated entry after the workflow completes.',
+    )
+    trigger_get_status = Quantity(
+        type=bool,
+        default=False,
+        description='Retrieve the current status of the inference workflow.',
+        a_eln=ELNAnnotation(
+            component=ELNComponentEnum.ActionEditQuantity,
+            label='Get Workflow Status',
+        ),
     )
 
     def normalize(self, archive, logger=None):
@@ -181,6 +189,8 @@ class InferenceStatus(ArchiveSection):
                     self.status = status.name
             except Exception as e:
                 logger.error(f'Error getting workflow status: {e}. ')
+            finally:
+                self.trigger_get_status = False
             if self.status == 'COMPLETED':
                 pass
                 # TODO: Add logic to create reference of the generated entry
