@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import shutil
 import tarfile
@@ -12,8 +13,14 @@ from crystallm import (
     CIFTokenizer,
     GPTConfig,
 )
+from nomad.app.v1.routers.uploads import get_upload_with_read_access
+from nomad.datamodel import User
 from nomad.orchestrator.util import get_upload_files
 
+from nomad_plugin_crystal_llm.schemas.schema import (
+    CrystaLLMInferenceResult,
+    InferenceSettings,
+)
 from nomad_plugin_crystal_llm.workflows.shared import (
     InferenceModelInput,
     InferenceResultsInput,
@@ -157,3 +164,48 @@ def write_cif_files(result: InferenceResultsInput) -> None:
                 os.path.join(result.cif_dir, f'{result.cif_prefix}_{k + 1}.cif')
             )
     return cif_paths
+
+
+def write_entry_archive(cif_paths, result: InferenceResultsInput) -> str:
+    """
+    Create an entry for the inference results and add it to the upload.
+    """
+
+    # upload_files = get_upload_files(result.upload_id, result.user_id)
+    upload = get_upload_with_read_access(
+        result.upload_id,
+        User(user_id=result.user_id),
+        include_others=True,
+    )
+    inference_result = CrystaLLMInferenceResult(
+        prompt=result.model_data.raw_input,
+        workflow_id=result.cif_dir,
+        generated_cifs=cif_paths,
+        inference_settings=InferenceSettings(
+            # model=result.model_data.model_url.rsplit('/', 1)[-1].split('.tar.gz')[
+            #     0
+            # ],
+            num_samples=result.model_data.num_samples,
+            max_new_tokens=result.model_data.max_new_tokens,
+            temperature=result.model_data.temperature,
+            top_k=result.model_data.top_k,
+            seed=result.model_data.seed,
+            dtype=result.model_data.dtype,
+            compile=result.model_data.compile,
+        ),
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fname = os.path.join(tmpdir, 'inference_result.archive.json')
+        with open(fname, 'w', encoding='utf-8') as f:
+            json.dump(
+                {'data': inference_result.m_to_dict(with_root_def=True)}, f, indent=4
+            )
+        # upload.upload_files.add_rawfiles(fname, target_dir=result.cif_dir)
+        upload.process_upload(
+            # fname,
+            # target_dir=result.cif_dir,
+            file_operations=[
+                dict(op='ADD', path=fname, target_dir=result.cif_dir, temporary=False)
+            ],
+            only_updated_files=True,
+        )
