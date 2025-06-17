@@ -363,7 +363,7 @@ class CrystaLLMInference(EntryData):
         ),
     )
     inference_form = SubSection(
-        section_def=InferenceSettingsForm,
+        section_def=InferenceForm,
         description='Settings for the CrystaLLM inference workflow.',
     )
     results = SubSection(
