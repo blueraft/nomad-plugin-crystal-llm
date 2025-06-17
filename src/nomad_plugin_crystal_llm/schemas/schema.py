@@ -157,12 +157,6 @@ class InferenceSettingsForm(ArchiveSection):
 class InferenceStatus(ArchiveSection):
     """Section to fetch the status of an inference workflow."""
 
-    m_def = Section(
-        a_eln=ELNAnnotation(
-            overview=True,
-            order=['workflow_id', 'trigger_workflow_status'],
-        )
-    )
     workflow_id = Quantity(
         type=str,
         description='ID of the `temporalio` workflow.',
@@ -187,17 +181,19 @@ class InferenceStatus(ArchiveSection):
                     self.status = status.name
             except Exception as e:
                 logger.error(f'Error getting workflow status: {e}. ')
-            # if self.status == 'COMPLETED':
-            #     self.generated_entry = get_reference_from_mainfile(
-            #         archive,
-            #         mainfile=os.path.join(
-            #             self.workflow_id, 'crystallm_inference.archive.json'
-            #         ),
-            #     )
+            if self.status == 'COMPLETED':
+                pass
+                # TODO: Add logic to create reference of the generated entry
+                # self.generated_entry = get_reference_from_mainfile(
+                #     archive,
+                #     mainfile=os.path.join(
+                #         self.workflow_id, 'crystallm_inference.archive.json'
+                #     ),
+                # )
 
 
-class InferenceForm(RunWorkflowAction):
-    """Settings form for CrystaLLM inference workflows with editable fields."""
+class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
+    """Inference form for running CrystaLLM inference workflows."""
 
     m_def = Section(
         a_eln=ELNAnnotation(
@@ -218,6 +214,12 @@ class InferenceForm(RunWorkflowAction):
     inference_settings = SubSection(
         section_def=InferenceSettingsForm,
         description='Settings for the CrystaLLM inference workflow.',
+    )
+    inference_statuses = SubSection(
+        section_def=InferenceStatus,
+        description='A section for storing the status of the triggered inference '
+        'workflow.',
+        repeats=True,
     )
 
     def run_workflow(self, archive, logger=None):
@@ -261,7 +263,20 @@ class InferenceForm(RunWorkflowAction):
         workflow_id = orchestrator_utils.run_workflow(
             workflow_name=workflow_name, data=input_data, task_queue=TaskQueue.GPU
         )
-        # TODO: Add inference status section to the archive
+        if not self.inference_statuses:
+            self.inference_statuses = [InferenceStatus()]
+        else:
+            self.inference_statuses.append(InferenceStatus())
+
+        self.inference_statuses[-1].workflow_id = workflow_id
+
+    def normalize(self, archive, logger=None):
+        """
+        Normalize the CrystaLLM inference form section.
+        This method ensures that the section is ready for processing.
+        """
+        self.m_setdefault('inference_settings')
+        super().normalize(archive, logger)
 
 
 class CrystaLLMInferenceResult(EntryData):
@@ -365,60 +380,3 @@ class CrystaLLMInferenceResult(EntryData):
         self.process_generated_cifs(archive, logger)
 
         super().normalize(archive, logger)
-
-
-class CrystaLLMInference(EntryData):
-    """
-    Section for running CrystaLLM inference workflows.
-    """
-
-    m_def = Section(
-        label='CrystaLLM Inference',
-        categories=[InferenceCategory],
-        a_eln=ELNAnnotation(
-            properties=SectionProperties(
-                order=[
-                    'name',
-                    'description',
-                    'inference_form',
-                    'results',
-                ]
-            ),
-        ),
-    )
-    name = Quantity(
-        type=str,
-        description='Name of the inference workflow.',
-        a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
-    )
-    description = Quantity(
-        type=str,
-        description='Description of the inference workflow.',
-        a_eln=ELNAnnotation(
-            component=ELNComponentEnum.RichTextEditQuantity,
-            props=dict(height=150),
-        ),
-    )
-    inference_form = SubSection(
-        section_def=InferenceForm,
-        description='Settings for the CrystaLLM inference workflow.',
-    )
-    inference_statuses = SubSection(
-        section_def=InferenceStatus,
-        description='Results of the inference workflow.',
-        repeats=True,
-    )
-
-    def normalize(self, archive, logger=None):
-        """
-        Normalize the CrystaLLM inference section.
-        This method ensures that the section is ready for processing.
-        """
-        if not self.name:
-            self.name = archive.metadata.mainfile.split('.', 1)[0]
-        self.m_setdefault('inference_form/inference_settings')
-
-        super().normalize(archive, logger)
-
-
-m_package.__init_metainfo__()
