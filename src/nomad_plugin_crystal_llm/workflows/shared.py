@@ -8,11 +8,13 @@ class InferenceUserInput:
 
     Attributes:
     - raw_input: Raw input string to use as a prompt.
+    - user_id: User making the request
     - upload_id: If `generate_cif` is set to True, save CIF files to this upload.
     - generate_cif: If True, the model will generate CIF files.
     """
 
     upload_id: str
+    user_id: str
     raw_input: str
     generate_cif: bool = False
     model_path: str = 'models/crystallm_v1_small/ckpt.pt'

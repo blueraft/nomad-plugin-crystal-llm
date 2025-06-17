@@ -1,11 +1,12 @@
 import os
-from temporalio import activity
+
 from nomad.orchestrator.util import workflow_artifacts_dir
+from temporalio import activity
 
 from nomad_plugin_crystal_llm.workflows.shared import (
+    InferenceInput,
     InferenceModelInput,
     InferenceResultsInput,
-    InferenceInput,
 )
 
 

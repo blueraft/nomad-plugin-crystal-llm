@@ -14,7 +14,7 @@ from nomad.normalizing.topology import add_system, add_system_info
 from nomad.orchestrator import util as orchestrator_utils
 from nomad.orchestrator.shared.constant import TaskQueue
 
-from nomad_plugin_crystal_llm.workflows.shared import InferenceInput
+from nomad_plugin_crystal_llm.workflows.shared import InferenceUserInput
 
 m_package = SchemaPackage()
 
@@ -197,7 +197,7 @@ class InferenceForm(RunWorkflowAction):
             return
         if not self.inference_settings:
             self.inference_settings = InferenceSettingsForm()
-        input_data = InferenceInput(
+        input_data = InferenceUserInput(
             user_id=archive.metadata.authors[0].user_id,
             upload_id=archive.metadata.upload_id,
             raw_input=self.prompt,
