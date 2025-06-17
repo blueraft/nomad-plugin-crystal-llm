@@ -194,18 +194,12 @@ def write_entry_archive(cif_paths, result: InferenceResultsInput) -> str:
             compile=result.model_data.compile,
         ),
     )
-    with tempfile.TemporaryDirectory() as tmpdir:
-        fname = os.path.join(tmpdir, 'inference_result.archive.json')
-        with open(fname, 'w', encoding='utf-8') as f:
-            json.dump(
-                {'data': inference_result.m_to_dict(with_root_def=True)}, f, indent=4
-            )
-        # upload.upload_files.add_rawfiles(fname, target_dir=result.cif_dir)
-        upload.process_upload(
-            # fname,
-            # target_dir=result.cif_dir,
-            file_operations=[
-                dict(op='ADD', path=fname, target_dir=result.cif_dir, temporary=False)
-            ],
-            only_updated_files=True,
-        )
+    fname = os.path.join('inference_result.archive.json')
+    with open(fname, 'w', encoding='utf-8') as f:
+        json.dump({'data': inference_result.m_to_dict(with_root_def=True)}, f, indent=4)
+    upload.process_upload(
+        file_operations=[
+            dict(op='ADD', path=fname, target_dir=result.cif_dir, temporary=True)
+        ],
+        only_updated_files=True,
+    )
