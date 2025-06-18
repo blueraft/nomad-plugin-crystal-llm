@@ -16,7 +16,7 @@ with workflow.unsafe.imports_passed_through():
     )
 
 
-@workflow.defn
+@workflow.defn(name='nomad_plugin_crystal_llm.workflows.InferenceWorkflow')
 class InferenceWorkflow:
     @workflow.run
     async def run(self, data: InferenceInput) -> list[str]:
@@ -25,16 +25,27 @@ class InferenceWorkflow:
             data,
             start_to_close_timeout=timedelta(seconds=60),
         )
-        model_data = InferenceModelInput(raw_input=raw_input)
+        model_data = InferenceModelInput(
+            raw_input=raw_input,
+            model_path=data.model_path,
+            model_url=data.model_url,
+            num_samples=data.num_samples,
+            max_new_tokens=data.max_new_tokens,
+            temperature=data.temperature,
+            top_k=data.top_k,
+            seed=data.seed,
+            dtype=data.dtype,
+            compile=data.compile,
+        )
         await workflow.execute_activity(
             get_model,
             model_data,
-            start_to_close_timeout=timedelta(seconds=120),
+            start_to_close_timeout=timedelta(seconds=600),
         )
         generated_samples = await workflow.execute_activity(
             run_inference,
             model_data,
-            start_to_close_timeout=timedelta(seconds=120),
+            start_to_close_timeout=timedelta(seconds=600),
         )
         await workflow.execute_activity(
             write_results,
@@ -43,6 +54,8 @@ class InferenceWorkflow:
                 upload_id=data.upload_id,
                 generated_samples=generated_samples,
                 generate_cif=data.generate_cif,
+                model_data=model_data,
+                cif_dir=workflow.info().workflow_id,
             ),
             start_to_close_timeout=timedelta(seconds=60),
         )
