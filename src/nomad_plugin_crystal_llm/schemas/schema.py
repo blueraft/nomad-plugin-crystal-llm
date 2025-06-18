@@ -1,4 +1,5 @@
 from ase.io import read
+from ase.spacegroup import Spacegroup
 from matid import SymmetryAnalyzer
 from nomad.app.v1.routers.uploads import get_upload_with_read_access
 from nomad.datamodel.data import ArchiveSection, EntryData, EntryDataCategory
@@ -15,6 +16,8 @@ from nomad.orchestrator import util as orchestrator_utils
 from nomad.orchestrator.shared.constant import TaskQueue
 
 from nomad_plugin_crystal_llm.workflows.shared import InferenceUserInput
+
+SPACE_GROUPS = [Spacegroup(i).symbol for i in range(1, 231)]
 
 m_package = SchemaPackage()
 
@@ -207,6 +210,7 @@ class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
 
     m_def = Section(
         a_eln=ELNAnnotation(
+            label='CrystaLLM Inference Form',
             overview=True,
             order=[
                 'prompt',
@@ -216,10 +220,26 @@ class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
         )
     )
 
+    # TODO: Add field to upload a file containing multiple prompts.
+    composition = Quantity(
+        type=str,
+        description='Chemical composition to be used for prompt. '
+        'For example, NaCl, Al2O3.',
+        a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
+    )
+    num_formula_units_per_cell = Quantity(
+        type=MEnum(['1', '2', '3', '4', '6', '8']),
+        description='Number of formula units per unit cell to be used for prompt.',
+        a_eln=ELNAnnotation(component=ELNComponentEnum.AutocompleteEditQuantity),
+    )
+    space_group = Quantity(
+        type=MEnum(SPACE_GROUPS),
+        description='Space group to be used for prompt.',
+        a_eln=ELNAnnotation(component=ELNComponentEnum.AutocompleteEditQuantity),
+    )
     prompt = Quantity(
         type=str,
         description='Prompt to be used for inference.',
-        a_eln=ELNAnnotation(component=ELNComponentEnum.StringEditQuantity),
     )
     inference_settings = SubSection(
         section_def=InferenceSettingsForm,
