@@ -52,8 +52,7 @@ async def download_model(model_path: str, model_url: str | None = None) -> dict:
     with tempfile.TemporaryDirectory() as tmpdir:
         async with aiohttp.ClientSession() as session:
             async with session.get(model_url) as response:
-                if response.status != 200:
-                    raise ValueError(f'Failed to download model from "{model_url}".')
+                response.raise_for_status()
                 # Download in chunks
                 tmp_zipfile = os.path.join(tmpdir, model_url.split('/')[-1])
                 loop = asyncio.get_running_loop()
