@@ -319,12 +319,6 @@ class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
     m_def = Section(
         a_eln=ELNAnnotation(
             label='CrystaLLM Inference Form',
-            overview=True,
-            order=[
-                'prompt',
-                'trigger_run_workflow',
-                'inference_settings',
-            ],
         )
     )
 
@@ -337,12 +331,13 @@ class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
     )
     num_formula_units_per_cell = Quantity(
         type=MEnum(['1', '2', '3', '4', '6', '8']),
-        description='Number of formula units per unit cell to be used for prompt.',
+        description='(Optional) Number of formula units per unit cell to be used for '
+        'prompt.',
         a_eln=ELNAnnotation(component=ELNComponentEnum.AutocompleteEditQuantity),
     )
     space_group = Quantity(
         type=MEnum(SPACE_GROUPS),
-        description='Space group to be used for prompt.',
+        description='(Optional) Space group to be used for prompt.',
         a_eln=ELNAnnotation(component=ELNComponentEnum.AutocompleteEditQuantity),
     )
     prompt = Quantity(
@@ -408,10 +403,23 @@ class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
 
         self.inference_statuses[-1].workflow_id = workflow_id
 
+    def construct_prompt(self, logger=None):
+        """
+        Construct the prompt for CrystaLLM inference based on the provided
+        composition, number of formula units per cell, and space group.
+        """
+        self.prompt = None
+        if not self.composition:
+            logger.warn('No composition provided for the CrystaLLM inference prompt.')
+            return
+
+        self.prompt = f'data_{self.composition}'
+
     def normalize(self, archive, logger=None):
         """
         Normalize the CrystaLLM inference form section.
         This method ensures that the section is ready for processing.
         """
         self.m_setdefault('inference_settings')
+        self.construct_prompt(logger)
         super().normalize(archive, logger)
