@@ -1,7 +1,8 @@
+import os
+
 from ase.io import read
 from ase.spacegroup import Spacegroup
 from matid import SymmetryAnalyzer
-from nomad.app.v1.routers.uploads import get_upload_with_read_access
 from nomad.datamodel.data import ArchiveSection, EntryData, EntryDataCategory
 from nomad.datamodel.metainfo.annotations import (
     ELNAnnotation,
@@ -15,6 +16,7 @@ from nomad.normalizing.topology import add_system, add_system_info
 from nomad.orchestrator import util as orchestrator_utils
 from nomad.orchestrator.shared.constant import TaskQueue
 
+from nomad_plugin_crystal_llm.schemas.utils import get_reference_from_mainfile
 from nomad_plugin_crystal_llm.workflows.shared import InferenceUserInput
 
 SPACE_GROUPS = [Spacegroup(i).symbol for i in range(1, 231)]
@@ -272,7 +274,7 @@ class InferenceStatus(ArchiveSection):
         description='Status of the inference workflow.',
     )
     generated_entry = Quantity(
-        type=str,
+        type=CrystaLLMInferenceResult,
         description='Reference to the generated entry after the workflow completes.',
     )
     trigger_get_status = Quantity(
@@ -288,7 +290,7 @@ class InferenceStatus(ArchiveSection):
     def normalize(self, archive, logger=None):
         """Normalize the section to ensure it is ready for processing."""
         super().normalize(archive, logger)
-        if not self.status or self.status == 'RUNNING':
+        if not self.status or self.status == 'RUNNING' or self.trigger_get_status:
             try:
                 status = orchestrator_utils.get_workflow_status(self.workflow_id)
                 if status:
@@ -298,14 +300,17 @@ class InferenceStatus(ArchiveSection):
             finally:
                 self.trigger_get_status = False
             if self.status == 'COMPLETED':
-                pass
-                # TODO: Add logic to create reference of the generated entry
-                # self.generated_entry = get_reference_from_mainfile(
-                #     archive,
-                #     mainfile=os.path.join(
-                #         self.workflow_id, 'crystallm_inference.archive.json'
-                #     ),
-                # )
+                reference = get_reference_from_mainfile(
+                    archive.metadata.upload_id,
+                    os.path.join(self.workflow_id, 'inference_result.archive.json'),
+                )
+                if not reference:
+                    logger.error(
+                        'Unable to set reference for the generated entry for '
+                        f'workflow {self.workflow_id}.'
+                    )
+                else:
+                    self.generated_entry = reference
 
 
 class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
