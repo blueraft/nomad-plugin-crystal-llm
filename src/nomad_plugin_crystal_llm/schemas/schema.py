@@ -348,7 +348,7 @@ class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
         section_def=InferenceSettingsForm,
         description='Settings for the CrystaLLM inference workflow.',
     )
-    inference_statuses = SubSection(
+    triggered_inferences = SubSection(
         section_def=InferenceStatus,
         description='A section for storing the status of the triggered inference '
         'workflow.',
@@ -396,12 +396,12 @@ class CrystaLLMInferenceForm(RunWorkflowAction, EntryData):
         workflow_id = orchestrator_utils.run_workflow(
             workflow_name=workflow_name, data=input_data, task_queue=TaskQueue.GPU
         )
-        if not self.inference_statuses:
-            self.inference_statuses = [InferenceStatus()]
+        if not self.triggered_inferences:
+            self.triggered_inferences = [InferenceStatus()]
         else:
-            self.inference_statuses.append(InferenceStatus())
+            self.triggered_inferences.append(InferenceStatus())
 
-        self.inference_statuses[-1].workflow_id = workflow_id
+        self.triggered_inferences[-1].workflow_id = workflow_id
 
     def construct_prompt(self, logger=None):
         """
